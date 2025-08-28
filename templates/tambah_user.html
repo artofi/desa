@@ -1,0 +1,39 @@
+<!-- templates/tambah_user.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>➕ Tambah User</h2>
+<form method="post">
+    <div class="mb-3">
+        <label>Username</label>
+        <input type="text" name="username" class="form-control" required>
+    </div>
+    <div class="mb-3">
+        <label>Password</label>
+        <input type="password" name="password" class="form-control" required>
+    </div>
+    <div class="mb-3">
+        <label>Role</label>
+        <select name="role" class="form-control" onchange="toggleFields(this.value)">
+            <option value="admin">Admin</option>
+            <option value="kepala_dusun">Kepala Dusun</option>
+            <option value="masyarakat">Masyarakat</option>
+        </select>
+    </div>
+    <div class="mb-3" id="dusunField" style="display:none">
+        <label>Dusun</label>
+        <input type="text" name="dusun" class="form-control">
+    </div>
+    <div class="mb-3" id="nikField" style="display:none">
+        <label>NIK Masyarakat</label>
+        <input type="text" name="nik_masyarakat" class="form-control">
+    </div>
+    <button type="submit" class="btn btn-primary">Simpan</button>
+</form>
+
+<script>
+function toggleFields(role) {
+    document.getElementById('dusunField').style.display = role === 'kepala_dusun' ? 'block' : 'none';
+    document.getElementById('nikField').style.display = role === 'masyarakat' ? 'block' : 'none';
+}
+</script>
+{% endblock %}

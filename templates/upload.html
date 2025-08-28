@@ -1,0 +1,56 @@
+<!-- templates/upload.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2>📥 Upload Data dari Excel</h2>
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/">Beranda</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Upload Excel</li>
+        </ol>
+    </nav>
+
+    <!-- Download Template -->
+    <div class="alert alert-info">
+        <strong>📌 Download Template Excel:</strong>
+        <a href="/download/template" class="btn btn-outline-primary btn-sm">📥 Download Template.xlsx</a>
+        <p class="mt-2">Pastikan kolom sesuai: NIK, Nomor KK, Nama, Hubungan, Jenis Kelamin, dll</p>
+    </div>
+
+    <!-- Form Upload -->
+    <div class="card">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="file" class="form-label">Pilih File Excel (.xlsx)</label>
+                    <input type="file" class="form-control" name="file" accept=".xlsx" required>
+                </div>
+                <button type="submit" class="btn btn-success">✅ Upload & Impor Data</button>
+                <a href="/" class="btn btn-secondary">Kembali</a>
+            </form>
+        </div>
+    </div>
+
+    <!-- Hasil Upload -->
+    {% if result %}
+    <div class="mt-4">
+        {% if result.success %}
+        <div class="alert alert-success">
+            <h5>✅ Berhasil!</h5>
+            <p>{{ result.message }}</p>
+            <ul>
+                <li>Data baru: {{ result.new_count }}</li>
+                <li>Data diperbarui: {{ result.update_count }}</li>
+                <li>Gagal (duplikat NIK): {{ result.failed_count }}</li>
+            </ul>
+        </div>
+        {% else %}
+        <div class="alert alert-danger">
+            <h5>❌ Gagal: {{ result.message }}</h5>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

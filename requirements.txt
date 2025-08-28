@@ -1,0 +1,5 @@
+Flask
+Flask-Login
+fpdf2
+pandas
+openpyxl

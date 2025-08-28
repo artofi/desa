@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid">
+    <h2>🗑️ Riwayat Penghapusan Data</h2>
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/">Beranda</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Riwayat Hapus</li>
+        </ol>
+    </nav>
+
+    {% if riwayat %}
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead class="table-dark">
+                <tr>
+                    <th>NIK</th>
+                    <th>Nama</th>
+                    <th>Alasan</th>
+                    <th>Dusun</th>
+                    <th>Dihapus Oleh</th>
+                    <th>Tanggal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in riwayat %}
+                <tr>
+                    <td>{{ r.nik }}</td>
+                    <td>{{ r.nama }}</td>
+                    <td>{{ r.alasan_hapus }}</td>
+                    <td>{{ r.dusun }}</td>
+                    <td>{{ r.dihapus_oleh }}</td>
+                    <td>{{ r.tanggal_hapus }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info">Belum ada data yang dihapus.</div>
+    {% endif %}
+</div>
+{% endblock %}

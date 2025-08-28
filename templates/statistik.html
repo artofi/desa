@@ -1,0 +1,143 @@
+<!-- templates/statistik.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>📊 Statistik Kependudukan</h2>
+        <a href="/" class="btn btn-secondary">← Kembali</a>
+    </div>
+
+    <!-- Ringkasan Utama (Semua Role) -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">👥 Total Jiwa</h5>
+                    <p class="card-text display-6">{{ total_jiwa }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">🏠 Total KK</h5>
+                    <p class="card-text display-6">{{ total_kk }}</p>
+                </div>
+            </div>
+        </div>
+        <!-- Dusun hanya untuk admin -->
+        {% if user_role == 'admin' %}
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">🏘️ Dusun</h5>
+                    <p class="card-text display-6">{{ dusun_summary|length }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Agama & Pendidikan (Admin & Kepala Dusun) -->
+    {% if user_role in ['admin', 'kepala_dusun'] %}
+    <div class="row">
+        <!-- Agama -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-white">
+                    <h5 class="mb-0">🕌 Agama</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for agama, count in agama_data %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ agama }}
+                            <span class="badge bg-warning text-dark">{{ count }}</span>
+                        </li>
+                        {% else %}
+                        <li class="list-group-item">Tidak ada data</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pendidikan -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">🎓 Pendidikan</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for pendidikan, count in pendidikan_data %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ pendidikan }}
+                            <span class="badge bg-secondary">{{ count }}</span>
+                        </li>
+                        {% else %}
+                        <li class="list-group-item">Tidak ada data</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Data per Dusun (Hanya Admin) -->
+    {% if user_role == 'admin' %}
+    <div class="card">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0">🏘️ Statistik per Dusun</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Dusun</th>
+                            <th>Jiwa</th>
+                            <th>KK</th>
+                            <th>Laki-laki</th>
+                            <th>Perempuan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dusun, data in dusun_summary.items() %}
+                        <tr>
+                            <td><strong>{{ dusun }}</strong></td>
+                            <td>{{ data.jiwa }}</td>
+                            <td>{{ data.kk }}</td>
+                            <td>{{ data.laki }}</td>
+                            <td>{{ data.perempuan }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center">Tidak ada data dusun</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% elif user_role == 'kepala_dusun' %}
+        <div class="alert alert-info text-center">
+            <small>Anda hanya dapat melihat statistik untuk dusun <strong>{{ current_user.dusun }}</strong>.</small>
+        </div>
+    {% elif user_role == 'masyarakat' %}
+        <div class="alert alert-light text-center">
+            <small>Anda hanya dapat melihat ringkasan umum. Hubungi admin untuk detail lebih lanjut.</small>
+        </div>
+    {% endif %}
+
+    <!-- Tombol Cetak Statistik -->
+    <div class="text-end mt-4">
+        <a href="/cetak/statistik" class="btn btn-outline-primary">
+            📄 Cetak Statistik (PDF)
+        </a>
+    </div>
+</div>
+{% endblock %}

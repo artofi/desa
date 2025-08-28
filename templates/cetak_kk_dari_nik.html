@@ -1,0 +1,36 @@
+<!-- templates/cetak_kk_dari_nik.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2>🖨️ Cetak KK dari NIK</h2>
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/">Beranda</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Cetak dari NIK</li>
+        </ol>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="post">
+                <div class="mb-3">
+                    <label for="nik" class="form-label">Masukkan NIK</label>
+                    <input type="text" name="nik" id="nik" class="form-control" 
+                           placeholder="1234567890123456" 
+                           value="{{ request.form.nik if request.form }}"
+                           maxlength="16" required>
+                    <small class="text-muted">Masukkan NIK anggota keluarga.</small>
+                </div>
+                <button type="submit" class="btn btn-primary">🔍 Cari & Cetak KK</button>
+                <a href="/" class="btn btn-secondary">Kembali</a>
+            </form>
+        </div>
+    </div>
+
+    <div class="alert alert-info">
+        <h5>ℹ️ Cara Kerja</h5>
+        <p>Sistem akan mencari <strong>nomor KK</strong> dari NIK yang Anda masukkan, lalu mencetak seluruh anggota keluarga.</p>
+    </div>
+</div>
+{% endblock %}

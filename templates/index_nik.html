@@ -1,0 +1,162 @@
+<!-- templates/index_nik.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header & Dashboard -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+        <h2 class="mb-0">🧑 Daftar Semua Penduduk</h2>
+
+        <!-- Dashboard Desktop -->
+        <div class="d-none d-md-flex gap-3">
+            <div class="text-center px-4 py-3 bg-white rounded-4 shadow-sm" style="min-width: 120px; border: 1px solid #e0e0e0;">
+                <i class="bi bi-people-fill text-primary" style="font-size: 1.8rem;"></i>
+                <div class="mt-2">
+                    <small class="text-muted">Jiwa</small><br>
+                    <strong style="font-size: 1.2rem; color: #007bff;">{{ total_jiwa }}</strong>
+                </div>
+            </div>
+            <div class="text-center px-4 py-3 bg-white rounded-4 shadow-sm" style="min-width: 120px; border: 1px solid #e0e0e0;">
+                <i class="bi bi-house-door-fill text-success" style="font-size: 1.8rem;"></i>
+                <div class="mt-2">
+                    <small class="text-muted">KK</small><br>
+                    <strong style="font-size: 1.2rem; color: #28a745;">{{ total_kk }}</strong>
+                </div>
+            </div>
+            <div class="text-center px-4 py-3 bg-white rounded-4 shadow-sm" style="min-width: 120px; border: 1px solid #e0e0e0;">
+                <i class="bi bi-map-fill text-info" style="font-size: 1.8rem;"></i>
+                <div class="mt-2">
+                    <small class="text-muted">Dusun</small><br>
+                    <strong style="font-size: 1.2rem; color: #17a2b8;">{{ total_dusun }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Pencarian -->
+        		<form method="get" class="d-flex gap-2 w-100 w-md-auto">
+			<!-- Pertahankan view_mode -->
+			{% if request.args.get('view') %}
+				<input type="hidden" name="view" value="{{ request.args.get('view') }}">
+			{% endif %}
+
+			<input type="text" name="q" class="form-control" 
+				   placeholder="Cari: Nama, NIK, atau KK" 
+				   value="{{ request.args.get('q', '') }}" 
+				   style="max-width: 300px;" 
+				   autocomplete="off">
+
+			<button type="submit" class="btn btn-outline-primary">🔍 Cari</button>
+
+			<!-- Tombol Reset -->
+			{% if request.args.get('q') %}
+				<a href="{{ request.path }}?view={{ request.args.get('view', 'kk') }}" 
+				   class="btn btn-sm btn-secondary">🗙 Reset</a>
+			{% endif %}
+		</form>
+    </div>
+
+    <!-- Dashboard Mobile -->
+    <div class="alert p-0 d-md-none mb-4">
+        <div class="row g-2">
+            <div class="col-4">
+                <div class="text-center p-3 bg-white rounded shadow-sm">
+                    <i class="bi bi-people-fill text-primary"></i>
+                    <div class="small mt-1">Jiwa</div>
+                    <strong class="text-primary">{{ total_jiwa }}</strong>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="text-center p-3 bg-white rounded shadow-sm">
+                    <i class="bi bi-house-door-fill text-success"></i>
+                    <div class="small mt-1">KK</div>
+                    <strong class="text-success">{{ total_kk }}</strong>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="text-center p-3 bg-white rounded shadow-sm">
+                    <i class="bi bi-map-fill text-info"></i>
+                    <div class="small mt-1">Dusun</div>
+                    <strong class="text-info">{{ total_dusun }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tombol Aksi -->
+    <div class="d-flex flex-wrap gap-2 mb-4">
+        <div class="btn-group" role="group">
+            <a href="/?view=kk" class="btn btn-outline-secondary btn-sm">📋 Per KK</a>
+            <a href="/?view=nik" class="btn btn-primary btn-sm">🧑 Per NIK</a>
+        </div>
+        <a href="/tambah" class="btn btn-primary px-4">➕ Tambah</a>
+        <a href="/statistik" class="btn btn-info text-white px-4">📊 Statistik</a>
+        <a href="/ekspor/excel" class="btn btn-success px-4">📤 Excel</a>
+        <a href="/cetak" class="btn btn-warning px-4">🖨️ Cetak Laporan</a>
+    </div>
+
+    <!-- Tabel Data -->
+    {% if penduduk %}
+        <div class="table-responsive shadow-sm rounded-3 overflow-hidden">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>NIK</th>
+                        <th>Nama</th>
+                        <th>Hubungan</th>
+                        <th>Nomor KK</th>
+                        <th>Dusun</th>
+                        <th>Pendidikan</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in penduduk %}
+                    <tr>
+                        <td><code class="text-dark">{{ p.nik }}</code></td>
+                        <td>{{ p.nama }}</td>
+                        <td><span class="badge bg-primary">{{ p.hubungan }}</span></td>
+                        <td>{{ p.nomor_kk or '-' }}</td>
+                        <td>{{ p.dusun }}</td>
+                        <td>{{ p.pendidikan }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="/edit/{{ p.nik }}" class="btn btn-outline-primary" title="Ubah">✏️</a>
+                                {% if p.nomor_kk and p.nomor_kk.strip() %}
+                                    <a href="/cetak/kk/{{ p.nomor_kk }}" class="btn btn-outline-success" target="_blank" title="Cetak KK">📄</a>
+                                {% else %}
+                                    <button class="btn btn-outline-secondary" disabled title="Tidak ada KK">📄</button>
+                                {% endif %}
+                                <a href="/hapus/{{ p.nik }}" class="btn btn-outline-danger"
+                                   onclick="return confirm('Yakin hapus {{ p.nama }}?')" title="Hapus">🗑️</a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info text-center py-5 rounded-4">
+            <i class="bi bi-emoji-frown" style="font-size: 3rem;"></i>
+            <h5 class="mt-3">📭 Tidak ada data yang ditemukan</h5>
+            <p>Kata kunci: "<strong>{{ q }}</strong>" tidak ditemukan.</p>
+            <a href="/?view=nik" class="btn btn-secondary">⬅️ Kembali ke semua data</a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Gaya Tambahan -->
+<style>
+    .table-responsive {
+        border-radius: 0.5rem;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .btn {
+        transition: all 0.2s ease;
+    }
+    .btn:hover {
+        transform: translateY(-1px);
+    }
+</style>
+{% endblock %}

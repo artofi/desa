@@ -1,0 +1,10 @@
+# render.yaml
+services:
+  - type: web
+    name: aplikasi-desa-nagori-bahapal-raya
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python wsgi.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0

@@ -1,0 +1,115 @@
+<!-- templates/login.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center min-vh-100 py-4" style="background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-8 col-lg-6">
+                <!-- Login Card -->
+                <div class="card shadow-lg border-0 rounded-4 overflow-hidden">
+                    <!-- Header -->
+                    <div class="bg-primary text-white text-center py-4">
+                        <h3 class="mb-0">
+                            <i class="bi bi-lock"></i> Masuk Sistem
+                        </h3>
+                        <p class="mb-0 opacity-75">Desa Nagori Bahapal Raya</p>
+                    </div>
+
+                    <!-- Body -->
+                    <div class="card-body p-4">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'danger' else 'warning' }} alert-dismissible fade show small" role="alert">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+
+                        <form method="post">
+                            <!-- Username -->
+                            <div class="mb-3">
+                                <label for="username" class="form-label">
+                                    <i class="bi bi-person"></i> Username
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-person-fill"></i>
+                                    </span>
+                                    <input type="text"
+                                           name="username"
+                                           id="username"
+                                           class="form-control form-control-lg"
+                                           placeholder="Masukkan username"
+                                           required
+                                           autofocus>
+                                </div>
+                            </div>
+
+                            <!-- Password -->
+                            <div class="mb-4">
+                                <label for="password" class="form-label">
+                                    <i class="bi bi-key"></i> Password
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-lock-fill"></i>
+                                    </span>
+                                    <input type="password"
+                                           name="password"
+                                           id="password"
+                                           class="form-control form-control-lg"
+                                           placeholder="Masukkan password"
+                                           required>
+                                </div>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="bi bi-box-arrow-in-right"></i> Masuk
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="card-footer bg-light text-center small text-muted py-3">
+                        © 2025 Desa Nagori Bahapal Raya | Sistem Informasi Kependudukan
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mobile Note -->
+<div class="text-center mt-3 text-white small d-md-none">
+    <i class="bi bi-info-circle"></i> Gunakan layar potret untuk pengalaman terbaik
+</div>
+{% endblock %}
+<!-- Bottom Navbar (Mobile) - Sembunyi di halaman login -->
+{% if request.endpoint != 'login' %}
+<div class="d-md-none">
+  <div class="fixed-bottom bg-white border-top d-flex justify-content-around py-2">
+    <a href="/" class="text-center text-decoration-none text-dark">
+      <i class="bi bi-house"></i><br><small>Beranda</small>
+    </a>
+    <a href="/tambah" class="text-center text-decoration-none text-dark">
+      <i class="bi bi-plus-circle"></i><br><small>Tambah</small>
+    </a>
+    <a href="/cetak" class="text-center text-decoration-none text-dark">
+      <i class="bi bi-printer"></i><br><small>Cetak</small>
+    </a>
+    <a href="/statistik" class="text-center text-decoration-none text-dark">
+      <i class="bi bi-bar-chart"></i><br><small>Statistik</small>
+    </a>
+    <a href="/logout" class="text-center text-decoration-none text-dark">
+      <i class="bi bi-box-arrow-right"></i><br><small>Keluar</small>
+    </a>
+  </div>
+</div>
+{% endif %}

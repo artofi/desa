@@ -1,0 +1,274 @@
+<!-- templates/edit.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2>✏️ Ubah Data Penduduk</h2>
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Beranda</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Data Penduduk</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Ubah Data</li>
+        </ol>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'danger' else 'success' }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form method="post">
+                <div class="row mb-3">
+                    <!-- NIK -->
+                    <div class="col-md-6">
+                        <label for="nik" class="form-label">NIK <span class="text-danger">*</span></label>
+                        <input type="text"
+                               name="nik"
+                               id="nik"
+                               class="form-control"
+                               value="{{ data.nik if data.nik else '' }}"
+                               oninput="validateNumber(this, 16)"
+                               maxlength="16"
+                               required>
+                        <small class="text-muted">16 digit angka</small>
+                        <div class="text-danger small mt-1" id="nik-error"></div>
+                    </div>
+
+                    <!-- Nomor KK -->
+                    <div class="col-md-6">
+                        <label for="nomor_kk" class="form-label">Nomor KK <span class="text-danger">*</span></label>
+                        <input type="text"
+                               name="nomor_kk"
+                               id="nomor_kk"
+                               class="form-control"
+                               value="{{ data.nomor_kk if data.nomor_kk else '' }}"
+                               oninput="validateNumber(this, 16)"
+                               maxlength="16"
+                               required>
+                        <small class="text-muted">16 digit angka</small>
+                        <div class="text-danger small mt-1" id="kk-error"></div>
+                    </div>
+                </div>
+
+                <!-- Nama -->
+                <div class="mb-3">
+                    <label for="nama" class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
+                    <input type="text"
+                           name="nama"
+                           id="nama"
+                           class="form-control"
+                           value="{{ data.nama if data.nama else '' }}"
+                           oninput="validateNama(this)"
+                           required>
+                    <div class="text-danger small mt-1" id="nama-error"></div>
+                </div>
+
+                <div class="row mb-3">
+                    <!-- Hubungan -->
+                    <div class="col-md-4">
+                        <label class="form-label">Hubungan</label>
+                        <select name="hubungan" class="form-select">
+                            <option value="">-- Pilih --</option>
+                            <option value="Kepala Keluarga" {% if data.hubungan == "Kepala Keluarga" %}selected{% endif %}>Kepala Keluarga</option>
+                            <option value="Istri" {% if data.hubungan == "Istri" %}selected{% endif %}>Istri</option>
+                            <option value="Anak" {% if data.hubungan == "Anak" %}selected{% endif %}>Anak</option>
+                            <option value="Orang Tua" {% if data.hubungan == "Orang Tua" %}selected{% endif %}>Orang Tua</option>
+                            <option value="Menantu" {% if data.hubungan == "Menantu" %}selected{% endif %}>Menantu</option>
+                            <option value="Cucu" {% if data.hubungan == "Cucu" %}selected{% endif %}>Cucu</option>
+                            <option value="Famili Lain" {% if data.hubungan == "Famili Lain" %}selected{% endif %}>Famili Lain</option>
+                            <option value="Lainnya">Lainnya</option>
+                        </select>
+                    </div>
+
+                    <!-- Jenis Kelamin -->
+                    <div class="col-md-4">
+                        <label class="form-label">Jenis Kelamin</label>
+                        <select name="jenis_kelamin" class="form-select">
+                            <option value="">-- Pilih --</option>
+                            <option value="L" {% if data.jenis_kelamin == "L" %}selected{% endif %}>Laki-laki</option>
+                            <option value="P" {% if data.jenis_kelamin == "P" %}selected{% endif %}>Perempuan</option>
+                        </select>
+                    </div>
+
+                    <!-- Agama -->
+                    <div class="col-md-4">
+                        <label class="form-label">Agama</label>
+                        <select name="agama" class="form-select">
+                            <option value="">-- Pilih --</option>
+                            <option value="Islam" {% if data.agama == "Islam" %}selected{% endif %}>Islam</option>
+                            <option value="Kristen" {% if data.agama == "Kristen" %}selected{% endif %}>Kristen</option>
+                            <option value="Katolik" {% if data.agama == "Katolik" %}selected{% endif %}>Katolik</option>
+                            <option value="Hindu" {% if data.agama == "Hindu" %}selected{% endif %}>Hindu</option>
+                            <option value="Buddha" {% if data.agama == "Buddha" %}selected{% endif %}>Buddha</option>
+                            <option value="Konghucu" {% if data.agama == "Konghucu" %}selected{% endif %}>Konghucu</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <!-- Tempat Lahir -->
+                    <div class="col-md-6">
+                        <label class="form-label">Tempat Lahir</label>
+                        <input type="text" name="tempat_lahir" class="form-control" value="{{ data.tempat_lahir if data.tempat_lahir else '' }}">
+                    </div>
+                    <!-- Tanggal Lahir -->
+                    <div class="col-md-6">
+                        <label class="form-label">Tanggal Lahir</label>
+                        <input type="date" name="tanggal_lahir" class="form-control" value="{{ data.tanggal_lahir if data.tanggal_lahir else '' }}">
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <!-- Status Perkawinan -->
+                    <div class="col-md-6">
+                        <label class="form-label">Status Perkawinan</label>
+                        <select name="status_perkawinan" class="form-select">
+                            <option value="">-- Pilih --</option>
+                            <option value="Belum Kawin" {% if data.status_perkawinan == "Belum Kawin" %}selected{% endif %}>Belum Kawin</option>
+                            <option value="Kawin" {% if data.status_perkawinan == "Kawin" %}selected{% endif %}>Kawin</option>
+                            <option value="Cerai Hidup" {% if data.status_perkawinan == "Cerai Hidup" %}selected{% endif %}>Cerai Hidup</option>
+                            <option value="Cerai Mati" {% if data.status_perkawinan == "Cerai Mati" %}selected{% endif %}>Cerai Mati</option>
+                        </select>
+                    </div>
+                    <!-- Pendidikan -->
+                    <div class="col-md-6">
+                        <label class="form-label">Pendidikan</label>
+                        <select name="pendidikan" class="form-select">
+                            <option value="">-- Pilih --</option>
+                            <option value="Tidak/Belum Sekolah" {% if data.pendidikan == "Tidak/Belum Sekolah" %}selected{% endif %}>Tidak/Belum Sekolah</option>
+                            <option value="Belum Tamat SD/Sederajat" {% if data.pendidikan == "Belum Tamat SD/Sederajat" %}selected{% endif %}>Belum Tamat SD/Sederajat</option>
+                            <option value="Tamat SD/Sederajat" {% if data.pendidikan == "Tamat SD/Sederajat" %}selected{% endif %}>Tamat SD/Sederajat</option>
+                            <option value="SLTP/Sederajat" {% if data.pendidikan == "SLTP/Sederajat" %}selected{% endif %}>SLTP/Sederajat</option>
+                            <option value="SLTA/Sederajat" {% if data.pendidikan == "SLTA/Sederajat" %}selected{% endif %}>SLTA/Sederajat</option>
+                            <option value="Diploma I/II" {% if data.pendidikan == "Diploma I/II" %}selected{% endif %}>Diploma I/II</option>
+                            <option value="Diploma III" {% if data.pendidikan == "Diploma III" %}selected{% endif %}>Diploma III</option>
+                            <option value="Diploma IV/Strata I" {% if data.pendidikan == "Diploma IV/Strata I" %}selected{% endif %}>Diploma IV/Strata I</option>
+                            <option value="Strata II" {% if data.pendidikan == "Strata II" %}selected{% endif %}>Strata II</option>
+                            <option value="Strata III" {% if data.pendidikan == "Strata III" %}selected{% endif %}>Strata III</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <!-- Pekerjaan -->
+                    <div class="col-md-6">
+                        <label class="form-label">Pekerjaan</label>
+                        <input type="text" name="pekerjaan" class="form-control" value="{{ data.pekerjaan if data.pekerjaan else '' }}">
+                    </div>
+                    <!-- Golongan Darah -->
+                    <div class="col-md-6">
+                        <label class="form-label">Gol. Darah</label>
+                        <input type="text" name="golongan_darah" class="form-control" value="{{ data.golongan_darah if data.golongan_darah else '' }}" placeholder="A, B, AB, O">
+                    </div>
+                </div>
+
+                <!-- Alamat -->
+                <div class="mb-3">
+                    <label class="form-label">Alamat</label>
+                    <textarea name="alamat" class="form-control" rows="2">{{ data.alamat if data.alamat else '' }}</textarea>
+                </div>
+
+                <div class="row mb-3">
+                    <!-- RT/RW -->
+                    <div class="col-md-6">
+                        <label class="form-label">RT/RW</label>
+                        <input type="text" name="rt_rw" class="form-control" value="{{ data.rt_rw if data.rt_rw else '' }}" placeholder="001/002">
+                    </div>
+                    <!-- Dusun -->
+                    <div class="col-md-6">
+                        <label class="form-label">Dusun <span class="text-danger">*</span></label>
+                        <div class="d-flex flex-wrap gap-3">
+                            {% set dusun = data.dusun if data.dusun else '' %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="dusun" value="SATU" id="dusun1" {% if dusun == 'SATU' %}checked{% endif %} required>
+                                <label class="form-check-label" for="dusun1">SATU</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="dusun" value="DUA" id="dusun2" {% if dusun == 'DUA' %}checked{% endif %} required>
+                                <label class="form-check-label" for="dusun2">DUA</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="dusun" value="TIGA" id="dusun3" {% if dusun == 'TIGA' %}checked{% endif %} required>
+                                <label class="form-check-label" for="dusun3">TIGA</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="dusun" value="EMPAT" id="dusun4" {% if dusun == 'EMPAT' %}checked{% endif %} required>
+                                <label class="form-check-label" for="dusun4">EMPAT</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Program Kesejahteraan -->
+                <div class="mb-3">
+                    <label class="form-label">Program Kesejahteraan</label>
+                    <div class="row">
+                        {% for prog in programs %}
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="kesejahteraan" value="{{ prog }}"
+                                    id="prog_{{ loop.index }}"
+                                    {% if prog in current_kesejahteraan %}checked{% endif %}>
+                                <label class="form-check-label" for="prog_{{ loop.index }}">
+                                    {{ prog }}
+                                </label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Tombol -->
+                <div class="d-grid gap-2 d-md-flex">
+                    <button type="submit" class="btn btn-success">💾 Simpan Perubahan</button>
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">⬅️ Batal</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Script Validasi -->
+<script>
+// Validasi NIK & KK: hanya angka, wajib 16 digit
+function validateNumber(input, length) {
+    let errorDiv = document.getElementById(input.id + '-error');
+    let value = input.value.replace(/[^0-9]/g, '');
+    input.value = value;
+
+    if (value.length > 0 && value.length !== length) {
+        errorDiv.innerText = `Harus ${length} digit.`;
+    } else {
+        errorDiv.innerText = "";
+    }
+}
+
+// Validasi Nama: hanya huruf & spasi, otomatis kapital
+function validateNama(input) {
+    let errorDiv = document.getElementById('nama-error');
+    let value = input.value;
+
+    let clean = value.replace(/[^a-zA-Z\s]/g, '');
+    if (clean !== value) {
+        input.value = clean;
+        errorDiv.innerText = "Hanya huruf dan spasi yang diperbolehkan.";
+        return;
+    }
+
+    if (clean && clean !== clean.toUpperCase()) {
+        input.value = clean.toUpperCase();
+    }
+    errorDiv.innerText = "";
+}
+</script>
+
+{% endblock %}

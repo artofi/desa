@@ -1,0 +1,123 @@
+<!-- templates/progress.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>📊 Progress Penginputan Data</h2>
+        <a href="/" class="btn btn-secondary">← Kembali</a>
+    </div>
+
+    <!-- Ringkasan Total Desa -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Total Progress Desa</h5>
+            <div class="d-flex align-items-center gap-3">
+                <div style="flex: 1;">
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: {{ total_persen }}%;" 
+                             aria-valuenow="{{ total_persen }}" aria-valuemin="0" aria-valuemax="100">
+                            {{ total_persen }}%
+                        </div>
+                    </div>
+                </div>
+                <div class="text-nowrap">
+                    <strong>{{ total_terinput }} / {{ total_target }} jiwa</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress per Dusun -->
+    <h5>📈 Progress per Dusun</h5>
+    <div class="row mb-4">
+        {% for data in progress_data %}
+        <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0">Dusun {{ data.dusun }}</h6>
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <div class="mb-3">
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar 
+                                {{ 'bg-success' if data.persen >= 70 else 'bg-warning' if data.persen >= 50 else 'bg-danger' }}" 
+                                 role="progressbar" 
+                                 style="width: {{ data.persen }}%;" 
+                                 aria-valuenow="{{ data.persen }}" aria-valuemin="0" aria-valuemax="100">
+                                {{ data.persen }}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-auto text-center">
+                        <small class="text-muted">
+                            {{ data.terinput }} / {{ data.target }} jiwa
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Input per Role User -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">👥 Jumlah Input per Role User</h5>
+        </div>
+        <div class="card-body">
+            {% if data_per_role %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Role</th>
+                            <th>Jumlah Data Diinput</th>
+                            <th>Persentase</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for role, jumlah in data_per_role %}
+                        <tr>
+                            <td>
+                                {% if role == 'admin' %}
+                                    <span class="badge bg-primary">Admin</span>
+                                {% elif role == 'kepala_dusun' %}
+                                    <span class="badge bg-warning text-dark">Kepala Dusun</span>
+                                {% elif role == 'masyarakat' %}
+                                    <span class="badge bg-secondary">Masyarakat</span>
+                                {% else %}
+                                    <span class="badge bg-light text-dark">{{ role }}</span>
+                                {% endif %}
+                            </td>
+                            <td><strong>{{ jumlah }}</strong> jiwa</td>
+                            <td>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar bg-info" role="progressbar"
+                                         style="width: {{ (jumlah / total_terinput * 100) if total_terinput > 0 else 0 }}%;">
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    {{ "%.1f"|format((jumlah / total_terinput * 100) if total_terinput > 0 else 0) }}%
+                                </small>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted">Belum ada data input dari user.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Catatan -->
+    <div class="alert alert-info small">
+        <i class="bi bi-info-circle"></i> 
+        Halaman ini hanya bisa diakses oleh <strong>admin</strong>. 
+        Target per dusun bisa disesuaikan di kode.
+    </div>
+</div>
+{% endblock %}
