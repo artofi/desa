@@ -2,32 +2,41 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid">
-    <h2>📥 Upload Data dari Excel</h2>
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="/">Beranda</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Upload Excel</li>
-        </ol>
-    </nav>
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold"><i class="bi bi-upload"></i> 📥 Upload Data Excel</h2>
+        <a href="/" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Kembali
+        </a>
+    </div>
 
-    <!-- Download Template -->
-    <div class="alert alert-info">
-        <strong>📌 Download Template Excel:</strong>
-        <a href="/download/template" class="btn btn-outline-primary btn-sm">📥 Download Template.xlsx</a>
-        <p class="mt-2">Pastikan kolom sesuai: NIK, Nomor KK, Nama, Hubungan, Jenis Kelamin, dll</p>
+    <!-- Informasi Template -->
+    <div class="alert alert-info mb-4">
+        <h5><i class="bi bi-info-circle"></i> Panduan Upload</h5>
+        <p>Gunakan template yang sudah disediakan untuk menghindari kesalahan format.</p>
+        <ul>
+            <li>Format file: <strong>.xlsx</strong> (Excel)</li>
+            <li>Kolom wajib: <code>nik</code>, <code>nomor_kk</code>, <code>nama</code>, <code>hubungan</code>, <code>jenis_kelamin</code>, <code>dusun</code></li>
+            <li>Data akan <strong>diupdate otomatis</strong> jika NIK sudah ada</li>
+        </ul>
+		<!-- templates/upload.html -->
+		<a href="{{ url_for('download_template', filename='template_upload.xlsx') }}" class="btn btn-success">
+			<i class="bi bi-download"></i> Download Template
+		</a>
     </div>
 
     <!-- Form Upload -->
-    <div class="card">
+    <div class="card shadow-sm">
         <div class="card-body">
-            <form method="post" enctype="multipart/form-data">
+            <form method="POST" enctype="multipart/form-data">
                 <div class="mb-3">
-                    <label for="file" class="form-label">Pilih File Excel (.xlsx)</label>
-                    <input type="file" class="form-control" name="file" accept=".xlsx" required>
+                    <label for="file" class="form-label">Pilih File Excel</label>
+                    <input type="file" name="file" class="form-control" accept=".xlsx" required>
+                    <div class="form-text">Unggah file dengan ekstensi .xlsx</div>
                 </div>
-                <button type="submit" class="btn btn-success">✅ Upload & Impor Data</button>
-                <a href="/" class="btn btn-secondary">Kembali</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-upload"></i> Upload Data
+                </button>
             </form>
         </div>
     </div>
@@ -37,17 +46,18 @@
     <div class="mt-4">
         {% if result.success %}
         <div class="alert alert-success">
-            <h5>✅ Berhasil!</h5>
+            <h5><i class="bi bi-check-circle"></i> Berhasil!</h5>
             <p>{{ result.message }}</p>
             <ul>
-                <li>Data baru: {{ result.new_count }}</li>
-                <li>Data diperbarui: {{ result.update_count }}</li>
-                <li>Gagal (duplikat NIK): {{ result.failed_count }}</li>
+                <li>✅ Data baru: <strong>{{ result.new_count }}</strong></li>
+                <li>🔄 Data diperbarui: <strong>{{ result.update_count }}</strong></li>
+                <li>❌ Gagal: <strong>{{ result.failed_count }}</strong></li>
             </ul>
         </div>
         {% else %}
         <div class="alert alert-danger">
-            <h5>❌ Gagal: {{ result.message }}</h5>
+            <h5><i class="bi bi-x-circle"></i> Gagal!</h5>
+            <p>{{ result.message }}</p>
         </div>
         {% endif %}
     </div>

@@ -2,35 +2,87 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>📊 Progress Penginputan Data</h2>
-        <a href="/" class="btn btn-secondary">← Kembali</a>
+        <h2 class="text-primary">
+            <i class="bi bi-bar-chart me-2"></i>📊 Progress Penginputan Data
+        </h2>
+        <a href="/" class="btn btn-outline-secondary btn-sm px-3">
+            <i class="bi bi-arrow-left me-1"></i> Kembali
+        </a>
     </div>
 
-    <!-- Ringkasan Total Desa -->
-    <div class="card shadow-sm mb-4">
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <div class="card border-start border-primary border-4 h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-1"><i class="bi bi-people text-primary"></i> Total Terinput</h6>
+                    <h4 class="mb-0 fw-bold text-primary">{{ total_terinput }}</h4>
+                    <small class="text-muted">dari {{ total_target }} jiwa</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <div class="card border-start border-success border-4 h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-1"><i class="bi bi-percent text-success"></i> Capaian</h6>
+                    <h4 class="mb-0 fw-bold text-success">{{ "%.1f"|format(total_persen) }}%</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <div class="card border-start border-info border-4 h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-1"><i class="bi bi-house text-info"></i> Dusun</h6>
+                    <h4 class="mb-0 fw-bold text-info">{{ progress_data|length }}</h4>
+                    <small class="text-muted">dusun terdaftar</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <div class="card border-start border-warning border-4 h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-1"><i class="bi bi-crown text-warning"></i> Terbaik</h6>
+                    {% if progress_data %}
+                        {% set best = progress_data|sort(attribute='persen', reverse=true)|first %}
+                        <h5 class="mb-0 fw-bold text-warning">Dusun {{ best.dusun }}</h5>
+                        <small class="text-muted">{{ "%.1f"|format(best.persen) }}%</small>
+                    {% else %}
+                        <h5 class="mb-0 fw-bold text-secondary">—</h5>
+                        <small class="text-muted">Tidak ada data</small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Total Progress -->
+    <div class="card shadow-sm mb-4 border-0">
         <div class="card-body">
-            <h5 class="card-title">Total Progress Desa</h5>
+            <h5 class="card-title mb-3">
+                <i class="bi bi-graph-up me-2"></i> Total Progress Desa
+            </h5>
             <div class="d-flex align-items-center gap-3">
-                <div style="flex: 1;">
-                    <div class="progress" style="height: 25px;">
-                        <div class="progress-bar bg-success" role="progressbar" 
-                             style="width: {{ total_persen }}%;" 
+                <div class="flex-grow-1">
+                    <div class="progress rounded-pill" style="height: 28px;">
+                        <div class="progress-bar bg-success progress-bar-striped progress-bar-animated"
+                             role="progressbar"
+                             style="width: {{ total_persen }}%; border-radius: 14px;"
                              aria-valuenow="{{ total_persen }}" aria-valuemin="0" aria-valuemax="100">
-                            {{ total_persen }}%
+                            <strong class="text-white">{{ "%.1f"|format(total_persen) }}%</strong>
                         </div>
                     </div>
                 </div>
-                <div class="text-nowrap">
-                    <strong>{{ total_terinput }} / {{ total_target }} jiwa</strong>
+                <div class="text-nowrap fw-bold text-secondary">
+                    {{ total_terinput }} / {{ total_target }}
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Progress per Dusun -->
-    <h5>📈 Progress per Dusun</h5>
+    <h5><i class="bi bi-building"></i> 📈 Progress per Dusun</h5>
     <div class="row mb-4">
         {% for data in progress_data %}
         <div class="col-12 col-md-6 col-lg-3 mb-3">
@@ -42,10 +94,12 @@
                     <div class="mb-3">
                         <div class="progress" style="height: 20px;">
                             <div class="progress-bar 
-                                {{ 'bg-success' if data.persen >= 70 else 'bg-warning' if data.persen >= 50 else 'bg-danger' }}" 
+                                {% if data.persen >= 80 %}bg-success
+                                {% elif data.persen >= 60 %}bg-warning text-dark
+                                {% else %}bg-danger{% endif %}" 
                                  role="progressbar" 
                                  style="width: {{ data.persen }}%;" 
-                                 aria-valuenow="{{ data.persen }}" aria-valuemin="0" aria-valuemax="100">
+                                 aria-valuenow="{{ data.persen }}">
                                 {{ data.persen }}%
                             </div>
                         </div>
@@ -61,45 +115,104 @@
         {% endfor %}
     </div>
 
-    <!-- Input per Role User -->
-    <div class="card shadow-sm mb-4">
+    <!-- Input per User -->
+    <div class="card shadow-sm mb-4 border-0">
         <div class="card-header bg-info text-white">
-            <h5 class="mb-0">👥 Jumlah Input per Role User</h5>
+            <h5 class="mb-0">
+                <i class="bi bi-person-check me-2"></i> 👤 Jumlah Input per User
+            </h5>
         </div>
+
+        <!-- Form Filter -->
+        <div class="card-body border-bottom">
+            <form method="GET" class="row g-3">
+                <div class="col-12 col-md-5">
+                    <label for="dusun" class="form-label">FilterWhere Dusun</label>
+                    <select name="dusun" id="dusun" class="form-select">
+                        <option value="">Semua Dusun</option>
+                        {% for d in semua_dusun %}
+                        <option value="{{ d }}" {% if filter_dusun == d %}selected{% endif %}>
+                            Dusun {{ d }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-5">
+                    <label for="tanggal" class="form-label">Rentang Tanggal</label>
+                    <input type="text" name="tanggal" id="tanggal" class="form-control"
+                           placeholder="Pilih rentang tanggal"
+                           value="{{ request.args.get('tanggal', '') }}"
+                           autocomplete="off">
+                </div>
+
+                <div class="col-12 col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2">
+                        <i class="bi bi-funnel"></i>
+                        <span>Filter</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Reset Filter -->
+        <div class="card-body pt-0">
+            <a href="{{ url_for('progress') }}" class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2 py-2">
+                <i class="bi bi-arrow-counterclockwise"></i>
+                <span>Reset Semua Filter</span>
+            </a>
+        </div>
+
+        <!-- Alert Filter Aktif -->
+        {% if filter_dusun or tanggal_filter %}
+        <div class="alert alert-info small mt-2 mb-0 py-1">
+            <i class="bi bi-filter"></i>
+            Filter aktif: 
+            {% if filter_dusun %}Dusun {{ filter_dusun }}{% endif %}
+            {% if tanggal_filter %} • {{ tanggal_filter }}{% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Tabel User -->
         <div class="card-body">
-            {% if data_per_role %}
+            {% if data_per_user and data_per_user|length > 0 %}
             <div class="table-responsive">
-                <table class="table table-hover align-middle">
+                <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Role</th>
-                            <th>Jumlah Data Diinput</th>
-                            <th>Persentase</th>
+                            <th><i class="bi bi-person"></i> User</th>
+                            <th><i class="bi bi-person-badge"></i> Username</th>
+                            <th><i class="bi bi-person-workspace"></i> Role</th>
+                            <th><i class="bi bi-pencil-square"></i> Jumlah Input</th>
+                            <th><i class="bi bi-chart-line"></i> Kontribusi</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for role, jumlah in data_per_role %}
+                        {% set total_input = data_per_user|map(attribute='jumlah_input')|sum %}
+                        {% for row in data_per_user %}
                         <tr>
+                            <td><strong>{{ row.nama or row.username }}</strong></td>
+                            <td><code>{{ row.username }}</code></td>
                             <td>
-                                {% if role == 'admin' %}
-                                    <span class="badge bg-primary">Admin</span>
-                                {% elif role == 'kepala_dusun' %}
-                                    <span class="badge bg-warning text-dark">Kepala Dusun</span>
-                                {% elif role == 'masyarakat' %}
-                                    <span class="badge bg-secondary">Masyarakat</span>
+                                {% if row.role == 'admin' %}
+                                    <span class="badge bg-primary"><i class="bi bi-shield"></i> Admin</span>
+                                {% elif row.role == 'kepala_dusun' %}
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-person-standing"></i> Kepala Dusun</span>
+                                {% elif row.role == 'masyarakat' %}
+                                    <span class="badge bg-secondary"><i class="bi bi-people"></i> Masyarakat</span>
                                 {% else %}
-                                    <span class="badge bg-light text-dark">{{ role }}</span>
+                                    <span class="badge bg-light text-dark">{{ row.role|title }}</span>
                                 {% endif %}
                             </td>
-                            <td><strong>{{ jumlah }}</strong> jiwa</td>
+                            <td><strong>{{ row.jumlah_input }}</strong> data</td>
                             <td>
-                                <div class="progress" style="height: 10px;">
+                                <div class="progress mb-1" style="height: 8px;">
                                     <div class="progress-bar bg-info" role="progressbar"
-                                         style="width: {{ (jumlah / total_terinput * 100) if total_terinput > 0 else 0 }}%;">
+                                         style="width: {{ (row.jumlah_input / total_input * 100) if total_input > 0 else 0 }}%;">
                                     </div>
                                 </div>
                                 <small class="text-muted">
-                                    {{ "%.1f"|format((jumlah / total_terinput * 100) if total_terinput > 0 else 0) }}%
+                                    {{ "%.1f"|format((row.jumlah_input / total_input * 100) if total_input > 0 else 0) }}%
                                 </small>
                             </td>
                         </tr>
@@ -108,16 +221,36 @@
                 </table>
             </div>
             {% else %}
-            <p class="text-muted">Belum ada data input dari user.</p>
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-person-slash fa-2x mb-2 opacity-50"></i>
+                <p class="mb-0">Belum ada data input dari user.</p>
+            </div>
             {% endif %}
         </div>
     </div>
-
-    <!-- Catatan -->
-    <div class="alert alert-info small">
-        <i class="bi bi-info-circle"></i> 
-        Halaman ini hanya bisa diakses oleh <strong>admin</strong>. 
-        Target per dusun bisa disesuaikan di kode.
-    </div>
 </div>
+{% endblock %}
+
+{% block script %}
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+<script>
+$(function() {
+    $('#tanggal').daterangepicker({
+        locale: { format: 'YYYY-MM-DD', separator: " - " },
+        drops: 'down',
+        ranges: {
+            'Hari Ini': [moment(), moment()],
+            'Kemarin': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+            '7 Hari Terakhir': [moment().subtract(6, 'days'), moment()],
+            'Bulan Ini': [moment().startOf('month'), moment().endOf('month')],
+            'Bulan Lalu': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+        },
+        startDate: moment().subtract(6, 'days'),
+        endDate: moment()
+    });
+});
+</script>
 {% endblock %}

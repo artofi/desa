@@ -25,6 +25,18 @@
 
     <form method="post" class="bg-white p-4 rounded shadow-sm">
         <div class="row">
+		            <!-- Nomor KK -->
+            <div class="col-md-6 mb-3">
+                <label for="nomor_kk" class="form-label">Nomor KK <span class="text-danger">*</span></label>
+                <input type="text"
+                       name="nomor_kk"
+                       id="nomor_kk"
+                       class="form-control"
+                       oninput="validateNumber(this, 16)"
+                       maxlength="16"
+                       required>
+                <div class="text-danger small mt-1" id="kk-error"></div>
+            </div>
             <!-- NIK -->
             <div class="col-md-6 mb-3">
                 <label for="nik" class="form-label">NIK <span class="text-danger">*</span></label>
@@ -37,20 +49,6 @@
                        required>
                 <div class="text-danger small mt-1" id="nik-error"></div>
             </div>
-
-            <!-- Nomor KK -->
-            <div class="col-md-6 mb-3">
-                <label for="nomor_kk" class="form-label">Nomor KK <span class="text-danger">*</span></label>
-                <input type="text"
-                       name="nomor_kk"
-                       id="nomor_kk"
-                       class="form-control"
-                       oninput="validateNumber(this, 16)"
-                       maxlength="16"
-                       required>
-                <div class="text-danger small mt-1" id="kk-error"></div>
-            </div>
-
             <!-- Nama -->
             <div class="col-md-6 mb-3">
                 <label for="nama" class="form-label">Nama <span class="text-danger">*</span></label>
@@ -173,10 +171,25 @@
             </div>
 
             <!-- Pekerjaan -->
-            <div class="col-md-6 mb-3">
-                <label for="pekerjaan" class="form-label">Pekerjaan</label>
-                <input type="text" name="pekerjaan" class="form-control">
-            </div>
+            <!-- Pekerjaan -->
+			<div class="col-md-6 mb-3">
+				<label for="pekerjaan" class="form-label">Pekerjaan</label>
+				<select name="pekerjaan" class="form-select" required>
+					<option value="">-- Pilih Pekerjaan --</option>
+					<option value="Belum/Tidak Bekerja">Belum/Tidak Bekerja</option>
+					<option value="Mengurus Rumah Tangga">Mengurus Rumah Tangga</option>
+					<option value="Pelajar/Mahasiswa">Pelajar/Mahasiswa</option>
+					<option value="Pegawai Negeri Sipil">Pegawai Negeri Sipil</option>
+					<option value="Petani/Pekebun">Petani/Pekebun</option>
+					<option value="Wiraswasta">Wiraswasta</option>
+					<option value="Karyawan BUMD">Karyawan BUMD</option>
+					<option value="Karyawan Swasta">Karyawan Swasta</option>
+					<option value="Buruh Harian Lepas">Buruh Harian Lepas</option>
+					<option value="Bidan">Bidan</option>
+					<option value="Sopir">Sopir</option>
+					<option value="Lainnya">Lainnya</option>
+				</select>
+			</div>
 
             <!-- Alamat -->
             <div class="col-md-6 mb-3">
@@ -192,15 +205,23 @@
 
             <!-- Golongan Darah -->
             <div class="col-md-6 mb-3">
-                <label for="golongan_darah" class="form-label">Gol. Darah</label>
-                <select name="golongan_darah" class="form-control">
-                    <option value="">-- Pilih --</option>
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                    <option value="AB">AB</option>
-                    <option value="O">O</option>
-                </select>
-            </div>
+				<label>Golongan Darah</label>
+				<select name="golongan_darah" class="form-select">
+					  <option value="">Tidak Tahu</option>
+					  <option value="A">A</option>
+					  <option value="B">B</option>
+					  <option value="AB">AB</option>
+					  <option value="O">O</option>
+					  <option value="A+">A+</option>
+					  <option value="A-">A-</option>
+					  <option value="B+">B+</option>
+					  <option value="B-">B-</option>
+					  <option value="AB+">AB+</option>
+					  <option value="AB-">AB-</option>
+					  <option value="O+">O+</option>
+					  <option value="O-">O-</option>
+				</select>
+				</div>
 
             <!-- Program Kesejahteraan -->
             <div class="col-12 mb-3">

@@ -176,10 +176,26 @@ def index():
     # Ambil parameter
     search_query = request.args.get('q', '').strip()
     view_mode = request.args.get('view', 'kk')
+    
+    # Pagination
+    try:
+        limit = int(request.args.get('limit', 50))
+        if limit not in [50, 100, 500]:
+            limit = 50
+    except:
+        limit = 50
+    try:
+        page = int(request.args.get('page', 1))
+        if page < 1:
+            page = 1
+    except:
+        page = 1
+    offset = (page - 1) * limit
 
     # Variabel default
     total_jiwa = total_kk = total_dusun = 0
     rows = []
+    total_pages = 1  # ✅ Default 1
 
     # ============ 1. Ambil Statistik ============
     try:
@@ -227,32 +243,54 @@ def index():
                        pendidikan, kesejahteraan, tanggal_input
                 FROM penduduk
             """
+            count_query = "SELECT COUNT(*) FROM penduduk"
             params = ()
+            count_params = ()
 
             # Filter role
             if current_user.role == 'kepala_dusun':
                 base_query += " WHERE dusun = ?"
+                count_query += " WHERE dusun = ?"
                 params = (current_user.dusun,)
+                count_params = (current_user.dusun,)
             elif current_user.role == 'masyarakat':
                 base_query += " WHERE nik = ?"
+                count_query += " WHERE nik = ?"
                 params = (current_user.nik_masyarakat,)
+                count_params = (current_user.nik_masyarakat,)
 
             # Pencarian
             if search_query:
                 search_param = f'%{search_query}%'
+                where_clause = " (nomor_kk LIKE ? OR nik LIKE ? OR nama LIKE ?)"
                 if "WHERE" in base_query:
-                    # Sudah ada WHERE → pakai AND
-                    base_query += " AND (nomor_kk LIKE ? OR nik LIKE ? OR nama LIKE ?)"
+                    base_query += " AND" + where_clause
+                    count_query += " AND" + where_clause
                 else:
-                    # Belum ada WHERE → pakai WHERE
-                    base_query += " WHERE (nomor_kk LIKE ? OR nik LIKE ? OR nama LIKE ?)"
-                params += (search_param, search_param, search_param)
+                    base_query += " WHERE" + where_clause
+                    count_query += " WHERE" + where_clause
+                search_values = (search_param, search_param, search_param)
+                params += search_values
+                count_params += search_values
+
+            # Hitung total halaman
+            if limit != 'all':
+                cursor.execute(count_query, count_params)
+                total_count = cursor.fetchone()[0]
+                total_pages = (total_count + limit - 1) // limit
+            else:
+                total_pages = 1  # ✅ Tetap kirim 1 jika 'all'
 
             # Urutkan
             if view_mode == 'nik':
                 order_by = " ORDER BY nama"
             else:
                 order_by = " ORDER BY nomor_kk, CASE WHEN hubungan='Kepala Keluarga' THEN 0 ELSE 1 END, nama"
+
+            # Tambah LIMIT dan OFFSET hanya jika tidak "all"
+            if limit != 'all':
+                order_by += " LIMIT ? OFFSET ?"
+                params += (limit, offset)
 
             cursor.execute(base_query + order_by, params)
             rows = cursor.fetchall()
@@ -268,7 +306,10 @@ def index():
                              q=search_query,
                              total_jiwa=total_jiwa,
                              total_kk=total_kk,
-                             total_dusun=total_dusun)
+                             total_dusun=total_dusun,
+                             limit=limit,
+                             page=page,
+                             total_pages=total_pages)  # ✅ Dikirim
     else:
         keluarga = {}
         for row in rows:
@@ -288,7 +329,10 @@ def index():
                              q=search_query,
                              total_jiwa=total_jiwa,
                              total_kk=total_kk,
-                             total_dusun=total_dusun)
+                             total_dusun=total_dusun,
+                             limit=limit,
+                             page=page,
+                             total_pages=total_pages)  # ✅ Dikirim
 # --- LOGIN & LOGOUT ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -789,6 +833,305 @@ def cetak_daftar_dusun():
     filename = f"laporan/pdf/daftar_dusun_{safe_dusun}.pdf"
     pdf.output(filename)
     return send_file(filename, as_attachment=True)
+    
+def word_wrap(text, pdf, max_width):
+    lines = []
+    words = text.split(' ')
+    current_line = ""
+    for word in words:
+        test_line = f"{current_line} {word}".strip()
+        if pdf.get_string_width(test_line) <= max_width:
+            current_line = test_line
+        else:
+            if current_line:
+                lines.append(current_line)
+            current_line = word
+            while pdf.get_string_width(current_line) > max_width:
+                current_line = current_line[:-1]
+                if not current_line:
+                    break
+    if current_line:
+        lines.append(current_line)
+    return lines 
+
+ 
+@app.route('/cetak/kk/dusun/<dusun>')
+@login_required
+def cetak_kk_per_dusun(dusun):
+    # Validasi dusun
+    valid_dusun = ['SATU', 'DUA', 'TIGA', 'EMPAT']
+    if dusun not in valid_dusun:
+        flash("Dusun tidak ditemukan.", "danger")
+        return redirect(url_for('cetak_pilihan'))
+
+    # Cek hak akses
+    if current_user.role == 'kepala_dusun' and current_user.dusun != dusun:
+        flash("Anda hanya bisa cetak KK di dusun Anda.", "danger")
+        return redirect(url_for('cetak_pilihan'))
+    elif current_user.role == 'masyarakat':
+        flash("Anda tidak diizinkan mengakses fitur ini.", "danger")
+        return redirect(url_for('index'))
+
+    # Ambil semua KK di dusun tersebut
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT DISTINCT nomor_kk FROM penduduk 
+        WHERE dusun = ? AND nomor_kk IS NOT NULL AND TRIM(nomor_kk) != ''
+        ORDER BY nomor_kk
+    """, (dusun,))
+    kk_rows = cursor.fetchall()
+    conn.close()
+
+    if not kk_rows:
+        flash(f"Tidak ada data KK di Dusun {dusun}.", "info")
+        return redirect(url_for('cetak_pilihan'))
+
+    kks = [row['nomor_kk'] for row in kk_rows]
+
+    # Buat PDF
+    pdf = FPDF(orientation='L', unit='mm', format='A4')
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    for nomor_kk in kks:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT * FROM penduduk 
+            WHERE nomor_kk = ? 
+            ORDER BY CASE WHEN hubungan='Kepala Keluarga' THEN 0 ELSE 1 END, nama
+        """, (nomor_kk,)).fetchall()
+        conn.close()
+
+        if not rows:
+            continue
+
+        pdf.add_page()
+
+        # Background watermark
+        pdf.set_text_color(230, 230, 230)
+        pdf.set_font("helvetica", 'B', 80)
+        pdf.text(30, 100, "NAGORI BAHAPAL RAYA")
+        pdf.set_text_color(0, 0, 0)
+
+        # Logo
+        try:
+            pdf.image('static/img/logo_desa.png', x=10, y=10, w=20)
+        except:
+            pass
+
+        # Header
+        pdf.set_font("helvetica", 'B', 18)
+        pdf.cell(0, 10, "KARTU KELUARGA", ln=True, align='C')
+        pdf.set_font("helvetica", '', 14)
+        pdf.cell(0, 8, f"No. KK: {nomor_kk}", ln=True, align='C')
+        pdf.ln(10)
+
+        # Garis pemisah
+        pdf.set_draw_color(0, 0, 0)
+        pdf.line(10, 40, 290, 40)
+        pdf.ln(5)
+
+        # Tabel
+        pdf.set_font("helvetica", 'B', 9)
+        col_widths = [28, 35, 18, 25, 25, 18, 20, 20, 25, 20, 20]
+        headers = ["NIK", "Nama", "JK", "Tmpt Lahir", "Tgl Lahir", "Agama", "Status", "Pendidikan", "Pekerjaan", "Gol. Darah", "Hubungan"]
+        for i, h in enumerate(headers):
+            pdf.cell(col_widths[i], 8, h, 1, 0, 'C')
+        pdf.ln(8)
+
+        pdf.set_font("helvetica", '', 8)
+        for row in rows:
+            # Hitung tinggi baris berdasarkan nama
+            nama_lines = word_wrap(row['nama'], pdf, col_widths[1] - 1)
+            height = max(8, len(nama_lines) * 4)  # Minimal 8mm
+
+            x_before = pdf.get_x()
+            y_before = pdf.get_y()
+
+            # Kolom 1: NIK
+            pdf.cell(col_widths[0], height, str(row['nik']), 1, 0, 'L')
+
+            # Kolom 2: Nama (multi_cell)
+            pdf.set_xy(x_before + col_widths[0], y_before)
+            pdf.multi_cell(col_widths[1], 4, row['nama'], border=1, align='L')
+
+            # Reset posisi Y
+            pdf.set_xy(x_before + col_widths[0] + col_widths[1], y_before)
+
+            # Kolom 3: JK
+            pdf.cell(col_widths[2], height, row['jenis_kelamin'], 1, 0, 'C')
+            # Kolom 4: Tempat Lahir
+            pdf.cell(col_widths[3], height, row['tempat_lahir'], 1, 0, 'L')
+            # Kolom 5: Tanggal Lahir
+            pdf.cell(col_widths[4], height, row['tanggal_lahir'], 1, 0, 'L')
+            # Kolom 6: Agama
+            pdf.cell(col_widths[5], height, row['agama'], 1, 0, 'L')
+            # Kolom 7: Status
+            pdf.cell(col_widths[6], height, row['status_perkawinan'], 1, 0, 'L')
+            # Kolom 8: Pendidikan
+            pdf.cell(col_widths[7], height, row['pendidikan'], 1, 0, 'L')
+            # Kolom 9: Pekerjaan
+            pdf.cell(col_widths[8], height, row['pekerjaan'], 1, 0, 'L')
+            # Kolom 10: Gol. Darah
+            pdf.cell(col_widths[9], height, row['golongan_darah'], 1, 0, 'C')
+            # Kolom 11: Hubungan
+            pdf.cell(col_widths[10], height, row['hubungan'], 1, 0, 'L')
+
+            # Pindah baris
+            pdf.ln(height)
+
+        # Footer
+        pdf.ln(10)
+        pdf.set_font("helvetica", 'I', 8)
+        pdf.cell(0, 6, f"Dicetak oleh: {current_user.username} | Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}", 0, 1, 'C')
+
+    os.makedirs("laporan/pdf", exist_ok=True)
+    safe_dusun = sanitize_filename(dusun)
+    filename = f"laporan/pdf/kk_dusun_{safe_dusun}.pdf"
+    pdf.output(filename)
+    return send_file(filename, as_attachment=True)
+
+@app.route('/cetak/kk/dusun')
+@login_required
+def cetak_kk_per_dusun_form():
+    dusun = request.args.get('dusun', '').strip()
+    
+    # Validasi dusun
+    if not dusun:
+        flash("Dusun tidak valid.", "danger")
+        return redirect(url_for('cetak_pilihan'))
+        
+    valid_dusun = ['SATU', 'DUA', 'TIGA', 'EMPAT']
+    if dusun not in valid_dusun:
+        flash("Dusun tidak ditemukan.", "danger")
+        return redirect(url_for('cetak_pilihan'))
+
+    # Cek hak akses
+    if current_user.role == 'kepala_dusun' and current_user.dusun != dusun:
+        flash("Anda hanya bisa cetak KK di dusun Anda.", "danger")
+        return redirect(url_for('cetak_pilihan'))
+    elif current_user.role == 'masyarakat':
+        flash("Anda tidak diizinkan mengakses fitur ini.", "danger")
+        return redirect(url_for('index'))
+
+    # Ambil semua KK di dusun tersebut
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT DISTINCT nomor_kk FROM penduduk 
+        WHERE dusun = ? AND nomor_kk IS NOT NULL AND TRIM(nomor_kk) != ''
+        ORDER BY nomor_kk
+    """, (dusun,))
+    kk_rows = cursor.fetchall()
+    conn.close()
+
+    if not kk_rows:
+        flash(f"Tidak ada data KK di Dusun {dusun}.", "info")
+        return redirect(url_for('cetak_pilihan'))
+
+    kks = [row['nomor_kk'] for row in kk_rows]
+
+    # Buat PDF
+    pdf = FPDF(orientation='L', unit='mm', format='A4')
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    for nomor_kk in kks:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT * FROM penduduk 
+            WHERE nomor_kk = ? 
+            ORDER BY CASE WHEN hubungan='Kepala Keluarga' THEN 0 ELSE 1 END, nama
+        """, (nomor_kk,)).fetchall()
+        conn.close()
+
+        if not rows:
+            continue
+
+        pdf.add_page()
+
+        # Background watermark
+        pdf.set_text_color(230, 230, 230)
+        pdf.set_font("helvetica", 'B', 80)
+        pdf.text(30, 100, "NAGORI BAHAPAL RAYA")
+        pdf.set_text_color(0, 0, 0)
+
+        # Logo
+        try:
+            pdf.image('static/img/logo_desa.png', x=10, y=10, w=20)
+        except:
+            pass
+
+        # Header
+        pdf.set_font("helvetica", 'B', 18)
+        pdf.cell(0, 10, "KARTU KELUARGA", ln=True, align='C')
+        pdf.set_font("helvetica", '', 14)
+        pdf.cell(0, 8, f"No. KK: {nomor_kk}", ln=True, align='C')
+        pdf.ln(10)
+
+        # Garis pemisah
+        pdf.set_draw_color(0, 0, 0)
+        pdf.line(10, 40, 290, 40)
+        pdf.ln(5)
+
+        # Tabel
+        pdf.set_font("helvetica", 'B', 9)
+        col_widths = [28, 35, 18, 25, 25, 18, 20, 20, 25, 20, 20]
+        headers = ["NIK", "Nama", "JK", "Tmpt Lahir", "Tgl Lahir", "Agama", "Status", "Pendidikan", "Pekerjaan", "Gol. Darah", "Hubungan"]
+        for i, h in enumerate(headers):
+            pdf.cell(col_widths[i], 8, h, 1, 0, 'C')
+        pdf.ln(8)
+
+        pdf.set_font("helvetica", '', 8)
+        for row in rows:
+            # Hitung tinggi baris berdasarkan nama
+            nama_lines = word_wrap(row['nama'], pdf, col_widths[1] - 1)
+            height = max(8, len(nama_lines) * 4)  # Minimal 8mm
+
+            x_before = pdf.get_x()
+            y_before = pdf.get_y()
+
+            # Kolom 1: NIK
+            pdf.cell(col_widths[0], height, str(row['nik']), 1, 0, 'L')
+
+            # Kolom 2: Nama (multi_cell)
+            pdf.set_xy(x_before + col_widths[0], y_before)
+            pdf.multi_cell(col_widths[1], 4, row['nama'], border=1, align='L')
+
+            # Reset posisi Y
+            pdf.set_xy(x_before + col_widths[0] + col_widths[1], y_before)
+
+            # Kolom 3: JK
+            pdf.cell(col_widths[2], height, row['jenis_kelamin'], 1, 0, 'C')
+            # Kolom 4: Tempat Lahir
+            pdf.cell(col_widths[3], height, row['tempat_lahir'], 1, 0, 'L')
+            # Kolom 5: Tanggal Lahir
+            pdf.cell(col_widths[4], height, row['tanggal_lahir'], 1, 0, 'L')
+            # Kolom 6: Agama
+            pdf.cell(col_widths[5], height, row['agama'], 1, 0, 'L')
+            # Kolom 7: Status
+            pdf.cell(col_widths[6], height, row['status_perkawinan'], 1, 0, 'L')
+            # Kolom 8: Pendidikan
+            pdf.cell(col_widths[7], height, row['pendidikan'], 1, 0, 'L')
+            # Kolom 9: Pekerjaan
+            pdf.cell(col_widths[8], height, row['pekerjaan'], 1, 0, 'L')
+            # Kolom 10: Gol. Darah
+            pdf.cell(col_widths[9], height, row['golongan_darah'], 1, 0, 'C')
+            # Kolom 11: Hubungan
+            pdf.cell(col_widths[10], height, row['hubungan'], 1, 0, 'L')
+
+            # Pindah baris
+            pdf.ln(height)
+
+        # Footer
+        pdf.ln(10)
+        pdf.set_font("helvetica", 'I', 8)
+        pdf.cell(0, 6, f"Dicetak oleh: {current_user.username} | Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}", 0, 1, 'C')
+
+    os.makedirs("laporan/pdf", exist_ok=True)
+    safe_dusun = sanitize_filename(dusun)
+    filename = f"laporan/pdf/kk_dusun_{safe_dusun}.pdf"
+    pdf.output(filename)
+    return send_file(filename, as_attachment=True)
 
 @app.route('/statistik')
 @login_required
@@ -886,7 +1229,12 @@ def statistik():
                 'perempuan': row['perempuan']
             }
         for row in kk_per_dusun:
-            dusun_summary[row['dusun']]['kk'] = row['kk']
+            if row['dusun'] in dusun_summary:
+                dusun_summary[row['dusun']]['kk'] = row['kk']
+            else:
+                dusun_summary[row['dusun']] = {
+                    'jiwa': 0, 'laki': 0, 'perempuan': 0, 'kk': row['kk']
+                }
     else:
         dusun_summary = {}
 
@@ -1033,6 +1381,9 @@ def dashboard():
     # 🔴 Tambah: total_jiwa
     cursor.execute("SELECT COUNT(*) FROM penduduk")
     total_jiwa = cursor.fetchone()[0]
+    # ✅ Tambah: total_kk
+    cursor.execute("SELECT COUNT(DISTINCT nomor_kk) FROM penduduk WHERE nomor_kk IS NOT NULL AND TRIM(nomor_kk) != ''")
+    total_kk = cursor.fetchone()[0]
 
     conn.close()
 
@@ -1041,12 +1392,12 @@ def dashboard():
 
     # 🔴 Kirim total_jiwa ke template
     return render_template('dashboard.html',
-                         dusun_data=dusun_data,
-                         agama_data=agama_data,
-                         pendidikan_data=pendidikan_data,
-                         pertumbuhan_data=pertumbuhan_data,
-                         total_jiwa=total_jiwa)                       
-                         
+                     dusun_data=dusun_data,
+                     agama_data=agama_data,
+                     pendidikan_data=pendidikan_data,
+                     pertumbuhan_data=pertumbuhan_data,
+                     total_jiwa=total_jiwa,
+                     total_kk=total_kk)
 
 @app.route('/cetak/statistik')
 @login_required
@@ -1211,6 +1562,7 @@ def validasi_data(nama, nik, nomor_kk, dusun):
     return errors
     
     
+    
 @app.route('/progress')
 @login_required
 def progress():
@@ -1221,15 +1573,36 @@ def progress():
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1. Target penduduk per dusun (sesuaikan dengan kondisi desa)
+    # 1. Target penduduk per dusun
     target_dusun = {
         'SATU': 150,
         'DUA': 120,
-        'TIGA': 130,
+        'TIGA': 272,
         'EMPAT': 140
     }
 
-    # 2. Progress per Dusun
+    # 🔵 total_target = jumlah semua target dusun
+    total_target = sum(target_dusun.values())  # 150+120+272+140 = 682
+
+    # Ambil filter dari request (hanya untuk "Input per User")
+    filter_dusun = request.args.get('dusun')
+    tanggal = request.args.get('tanggal')
+
+    start_date = None
+    end_date = None
+    if tanggal:
+        try:
+            parts = tanggal.split(' - ')
+            start_date = parts[0].strip()
+            end_date = parts[1].strip()
+            datetime.strptime(start_date, '%Y-%m-%d')
+            datetime.strptime(end_date, '%Y-%m-%d')
+        except:
+            flash("Format tanggal tidak valid. Gunakan format: YYYY-MM-DD", "warning")
+
+    # ================================
+    # 🔵 PROGRESS UTAMA (TANPA FILTER)
+    # ================================
     cursor.execute("""
         SELECT dusun, COUNT(*) as jumlah 
         FROM penduduk 
@@ -1239,86 +1612,67 @@ def progress():
     data_dusun = cursor.fetchall()
 
     progress_data = []
-    total_target = 0
-    total_terinput = 0
-
+    total_terinput = 0  # Reset, akan diisi ulang
     for dusun, jumlah in data_dusun:
         target = target_dusun.get(dusun, 100)
         persen = min(100, round((jumlah / target) * 100))
-
         progress_data.append({
             'dusun': dusun,
             'terinput': jumlah,
             'target': target,
             'persen': persen
         })
+        total_terinput += jumlah  # Akumulasi total terinput
 
-        total_terinput += jumlah
-        total_target += target
-
+    # 🔵 total_persen = (total_terinput / total_target) * 100
     total_persen = min(100, round((total_terinput / total_target) * 100)) if total_target > 0 else 0
 
-    # 3. Jumlah input per role user
-    cursor.execute("""
-        SELECT u.role, COUNT(p.nik) as jumlah
-        FROM penduduk p
-        JOIN user u ON p.dusun = u.dusun OR p.nik = u.nik_masyarakat
-        GROUP BY u.role
-    """)
-    data_per_role = cursor.fetchall()
+    # =================================
+    # 🟡 INPUT PER USER (DENGAN FILTER)
+    # =================================
+    query_user = """
+        SELECT 
+            u.username,
+            u.username as nama,
+            u.role,
+            COUNT(p.nik) as jumlah_input
+        FROM user u
+        LEFT JOIN penduduk p ON (p.dusun = u.dusun OR p.nik = u.nik_masyarakat)
+        WHERE 1=1
+    """
+    params_user = []
+
+    if filter_dusun:
+        query_user += " AND p.dusun = ?"
+        params_user.append(filter_dusun)
+    if start_date and end_date:
+        query_user += " AND p.tanggal_input BETWEEN ? AND ?"
+        params_user.extend([start_date, end_date])
+
+    query_user += " GROUP BY u.id, u.username, u.role ORDER BY jumlah_input DESC"
+    cursor.execute(query_user, params_user)
+    data_per_user = cursor.fetchall()
 
     conn.close()
 
-    return render_template('progress.html',
-                         progress_data=progress_data,
-                         total_terinput=total_terinput,
-                         total_target=total_target,
-                         total_persen=total_persen,
-                         data_per_role=data_per_role)
-                         
-@app.route('/hapus/<nik>', methods=['GET', 'POST'])
-@login_required
-def hapus(nik):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT nama, dusun FROM penduduk WHERE nik = ?", (nik,))
-    row = cursor.fetchone()
-    conn.close()
+    # Hitung total input untuk persentase (hanya untuk tabel user)
+    total_input = sum(row[3] for row in data_per_user) if data_per_user else 0
 
-    if not row:
-        flash("Data tidak ditemukan.", "danger")
-        return redirect(url_for('index'))
-
-    if request.method == 'POST':
-        # Ambil alasan dari form
-        alasan = request.form.get('alasan', '').strip()
-        if not alasan:
-            flash("Alasan penghapusan wajib dipilih.", "danger")
-            return redirect(url_for('index'))
-
-        try:
-            conn = get_db()
-            # Simpan ke log penghapusan
-            conn.execute('''INSERT INTO log_penghapusan (nik, nama, alasan_hapus, dusun, dihapus_oleh)
-                            VALUES (?, ?, ?, ?, ?)''', 
-                         (nik, row['nama'], alasan, row['dusun'], current_user.username))
-            
-            # Hapus dari penduduk
-            conn.execute("DELETE FROM penduduk WHERE nik = ?", (nik,))
-            conn.commit()
-            flash(f"Data {row['nama']} berhasil dihapus.", "success")
-        except Exception as e:
-            flash(f"Gagal hapus data: {str(e)}", "danger")
-        finally:
-            conn.close()
-
-        return redirect(url_for('index'))
-
-    # Jika method GET (untuk keamanan)
-    # Anda bisa redirect atau tampilkan konfirmasi
-    flash("Gunakan form untuk menghapus data.", "warning")
-    return redirect(url_for('index'))    
-    
+    return render_template(
+        'progress.html',
+        progress_data=progress_data,
+        total_terinput=total_terinput,
+        total_target=total_target,
+        total_persen=total_persen,
+        data_per_user=data_per_user,
+        total_input=total_input,
+        semua_dusun=target_dusun.keys(),
+        filter_dusun=filter_dusun,
+        tanggal_filter=tanggal,
+        request=request
+    )   
+    # Di app.py, di akhir route /progress
+    total_input = sum(row['jumlah_input'] for row in data_per_user) if data_per_user else 0
     
 @app.route('/riwayat_hapus')
 @login_required

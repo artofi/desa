@@ -2,37 +2,39 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>📊 Statistik Kependudukan</h2>
-        <a href="/" class="btn btn-secondary">← Kembali</a>
+        <h2 class="fw-bold"><i class="bi bi-bar-chart"></i> 📊 Statistik Kependudukan</h2>
+        <a href="/" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Kembali
+        </a>
     </div>
 
-    <!-- Ringkasan Utama (Semua Role) -->
-    <div class="row mb-4">
+    <!-- Ringkasan Utama -->
+    <div class="row g-4 mb-4">
         <div class="col-md-4">
-            <div class="card bg-primary text-white">
+            <div class="card bg-primary text-white h-100 shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title">👥 Total Jiwa</h5>
-                    <p class="card-text display-6">{{ total_jiwa }}</p>
+                    <h6 class="card-title"><i class="bi bi-people"></i> Total Jiwa</h6>
+                    <p class="card-text display-6 mb-0">{{ total_jiwa }}</p>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card bg-success text-white">
+            <div class="card bg-success text-white h-100 shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title">🏠 Total KK</h5>
-                    <p class="card-text display-6">{{ total_kk }}</p>
+                    <h6 class="card-title"><i class="bi bi-house"></i> Total KK</h6>
+                    <p class="card-text display-6 mb-0">{{ total_kk }}</p>
                 </div>
             </div>
         </div>
         <!-- Dusun hanya untuk admin -->
         {% if user_role == 'admin' %}
         <div class="col-md-4">
-            <div class="card bg-info text-white">
+            <div class="card bg-info text-white h-100 shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title">🏘️ Dusun</h5>
-                    <p class="card-text display-6">{{ dusun_summary|length }}</p>
+                    <h6 class="card-title"><i class="bi bi-buildings"></i> Dusun</h6>
+                    <p class="card-text display-6 mb-0">{{ dusun_summary|length }}</p>
                 </div>
             </div>
         </div>
@@ -41,45 +43,49 @@
 
     <!-- Agama & Pendidikan (Admin & Kepala Dusun) -->
     {% if user_role in ['admin', 'kepala_dusun'] %}
-    <div class="row">
+    <div class="row g-4">
         <!-- Agama -->
         <div class="col-md-6">
-            <div class="card mb-4">
-                <div class="card-header bg-warning text-white">
-                    <h5 class="mb-0">🕌 Agama</h5>
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-people-fill"></i> Komposisi Agama</h5>
                 </div>
                 <div class="card-body">
+                    {% if agama_data %}
                     <ul class="list-group">
                         {% for agama, count in agama_data %}
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             {{ agama }}
-                            <span class="badge bg-warning text-dark">{{ count }}</span>
+                            <span class="badge bg-primary">{{ count }}</span>
                         </li>
-                        {% else %}
-                        <li class="list-group-item">Tidak ada data</li>
                         {% endfor %}
                     </ul>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">Tidak ada data</p>
+                    {% endif %}
                 </div>
             </div>
         </div>
 
         <!-- Pendidikan -->
         <div class="col-md-6">
-            <div class="card mb-4">
+            <div class="card shadow-sm">
                 <div class="card-header bg-secondary text-white">
-                    <h5 class="mb-0">🎓 Pendidikan</h5>
+                    <h5 class="mb-0"><i class="bi bi-mortarboard"></i> Pendidikan Terakhir</h5>
                 </div>
                 <div class="card-body">
+                    {% if pendidikan_data %}
                     <ul class="list-group">
                         {% for pendidikan, count in pendidikan_data %}
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             {{ pendidikan }}
-                            <span class="badge bg-secondary">{{ count }}</span>
+                            <span class="badge bg-success">{{ count }}</span>
                         </li>
-                        {% else %}
-                        <li class="list-group-item">Tidak ada data</li>
                         {% endfor %}
                     </ul>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">Tidak ada data</p>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -88,13 +94,14 @@
 
     <!-- Data per Dusun (Hanya Admin) -->
     {% if user_role == 'admin' %}
-    <div class="card">
+    <div class="card shadow-sm mt-4">
         <div class="card-header bg-dark text-white">
-            <h5 class="mb-0">🏘️ Statistik per Dusun</h5>
+            <h5 class="mb-0"><i class="bi bi-building"></i> 🏘️ Statistik per Dusun</h5>
         </div>
         <div class="card-body">
+            {% if dusun_summary and dusun_summary|length > 0 %}
             <div class="table-responsive">
-                <table class="table table-bordered">
+                <table class="table table-bordered table-hover align-middle">
                     <thead class="table-dark">
                         <tr>
                             <th>Dusun</th>
@@ -113,30 +120,32 @@
                             <td>{{ data.laki }}</td>
                             <td>{{ data.perempuan }}</td>
                         </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="5" class="text-center">Tidak ada data dusun</td>
-                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-building-x fs-1 opacity-50"></i>
+                <p class="mb-0 mt-2">Belum ada data dusun</p>
+            </div>
+            {% endif %}
         </div>
     </div>
     {% elif user_role == 'kepala_dusun' %}
-        <div class="alert alert-info text-center">
+        <div class="alert alert-info text-center mt-4">
             <small>Anda hanya dapat melihat statistik untuk dusun <strong>{{ current_user.dusun }}</strong>.</small>
         </div>
     {% elif user_role == 'masyarakat' %}
-        <div class="alert alert-light text-center">
+        <div class="alert alert-light text-center mt-4">
             <small>Anda hanya dapat melihat ringkasan umum. Hubungi admin untuk detail lebih lanjut.</small>
         </div>
     {% endif %}
 
-    <!-- Tombol Cetak Statistik -->
+    <!-- Tombol Cetak -->
     <div class="text-end mt-4">
         <a href="/cetak/statistik" class="btn btn-outline-primary">
-            📄 Cetak Statistik (PDF)
+            <i class="bi bi-printer"></i> Cetak Statistik (PDF)
         </a>
     </div>
 </div>

@@ -2,164 +2,134 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
-        <div>
-            <h2 class="mb-0">📊 Dashboard Kependudukan</h2>
-            <nav aria-label="breadcrumb" class="mt-2">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="/">Beranda</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
-                </ol>
-            </nav>
-        </div>
+<div class="container my-5">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold"><i class="bi bi-speedometer2"></i> Dashboard Admin</h2>
+    <span class="badge bg-primary fs-6">Hai, {{ current_user.username }}</span>
+  </div>
 
-        <!-- Ringkasan Singkat (Desktop) -->
-        <div class="text-center p-3 bg-light rounded-4 shadow-sm d-none d-md-block" style="min-width: 200px;">
-            <div class="small text-muted">Total Jiwa</div>
-            <strong class="text-primary" style="font-size: 1.5rem;">{{ total_jiwa or 0 }}</strong>
-            <div class="small text-muted mt-2">Terdata</div>
+  <!-- Ringkasan Utama -->
+  <div class="row g-4 mb-4">
+    <div class="col-md-3">
+      <div class="card bg-primary text-white text-center h-100">
+        <div class="card-body">
+          <h6 class="text-white-50">Total Jiwa</h6>
+          <p class="display-6 mb-0">{{ total_jiwa }}</p>
         </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-success text-white text-center h-100">
+        <div class="card-body">
+          <h6 class="text-white-50">Total KK</h6>
+          <p class="display-6 mb-0">{{ total_kk }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-info text-white text-center h-100">
+        <div class="card-body">
+          <h6 class="text-white-50">Dusun</h6>
+          <p class="display-6 mb-0">{{ dusun_data|length }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-warning text-dark text-center h-100">
+        <div class="card-body">
+          <h6 class="text-dark-50">Terinput</h6>
+          <div class="progress my-2">
+            <div class="progress-bar bg-success" style="width: {{ "%.0f"|format((total_jiwa / 682) * 100) }}%"></div>
+          </div>
+          <small>{{ "%.1f"|format((total_jiwa / 682) * 100) }}%</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grafik -->
+  <div class="row g-4">
+    <!-- Jiwa per Dusun -->
+    <div class="col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h5><i class="bi bi-people"></i> Jiwa per Dusun</h5>
+        </div>
+        <div class="card-body text-center">
+          {% if dusun_data %}
+            <img src="{{ url_for('static', filename='charts/chart_dusun.png') }}" class="img-fluid" alt="Jiwa per Dusun">
+          {% else %}
+            <p class="text-muted">Belum ada data</p>
+          {% endif %}
+        </div>
+      </div>
     </div>
 
-    <!-- Ringkasan Mobile -->
-    <div class="alert alert-light d-md-none p-3 text-center mb-4">
-        <div class="row justify-content-center">
-            <div class="col">
-                <strong class="text-primary" style="font-size: 1.3rem;">{{ total_jiwa or 0 }}</strong><br>
-                <small class="text-muted">Jiwa Terdata</small>
-            </div>
+    <!-- Agama -->
+    <div class="col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h5><i class="bi bi-people-fill"></i> Komposisi Agama</h5>
         </div>
+        <div class="card-body text-center">
+          {% if agama_data %}
+            <img src="{{ url_for('static', filename='charts/chart_agama.png') }}" class="img-fluid" alt="Komposisi Agama">
+          {% else %}
+            <p class="text-muted">Belum ada data</p>
+          {% endif %}
+        </div>
+      </div>
     </div>
 
-    <!-- Grafik Utama -->
-    <div class="row g-4">
-        <!-- 1. Jiwa per Dusun -->
-        <div class="col-12 col-lg-6">
-            <div class="card shadow-sm border-0 h-100">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-people-fill"></i> Jiwa per Dusun
-                    </h5>
-                </div>
-                <div class="card-body d-flex flex-column">
-                    {% if dusun_data %}
-                        <img src="{{ url_for('static', filename='charts/chart_dusun.png') }}?{{ range(1000)|random }}"
-                             class="img-fluid rounded mb-3" alt="Jiwa per Dusun">
-                        <div class="mt-auto text-muted small">
-                            <i class="bi bi-info-circle"></i> 
-                            Distribusi penduduk menurut dusun tempat tinggal.
-                        </div>
-                    {% else %}
-                        <div class="text-center py-5 text-muted">
-                            <i class="bi bi-people" style="font-size: 3rem;"></i>
-                            <p class="mt-3">Belum ada data dusun.</p>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
+    <!-- Pendidikan -->
+    <div class="col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h5><i class="bi bi-mortarboard"></i> Pendidikan Terakhir</h5>
         </div>
-
-        <!-- 2. Persentase Agama -->
-        <div class="col-12 col-lg-6">
-            <div class="card shadow-sm border-0 h-100">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-religion-christian"></i> Komposisi Agama
-                    </h5>
-                </div>
-                <div class="card-body d-flex flex-column">
-                    {% if agama_data %}
-                        <img src="{{ url_for('static', filename='charts/chart_agama.png') }}?{{ range(1000)|random }}"
-                             class="img-fluid rounded mb-3" alt="Agama">
-                        <div class="mt-auto text-muted small">
-                            <i class="bi bi-info-circle"></i> 
-                            Persentase penduduk berdasarkan agama yang dianut.
-                        </div>
-                    {% else %}
-                        <div class="text-center py-5 text-muted">
-                            <i class="bi bi-religion" style="font-size: 3rem;"></i>
-                            <p class="mt-3">Belum ada data agama.</p>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
+        <div class="card-body text-center">
+          {% if pendidikan_data %}
+            <img src="{{ url_for('static', filename='charts/chart_pendidikan.png') }}" class="img-fluid" alt="Pendidikan Terakhir">
+          {% else %}
+            <p class="text-muted">Belum ada data</p>
+          {% endif %}
         </div>
-
-        <!-- 3. Pendidikan Terakhir -->
-        <div class="col-12 col-lg-6">
-            <div class="card shadow-sm border-0 h-100">
-                <div class="card-header bg-warning text-dark">
-                    <h5 class="mb-0">
-                        <i class="bi bi-mortarboard-fill"></i> Pendidikan Terakhir
-                    </h5>
-                </div>
-                <div class="card-body d-flex flex-column">
-                    {% if pendidikan_data %}
-                        <img src="{{ url_for('static', filename='charts/chart_pendidikan.png') }}?{{ range(1000)|random }}"
-                             class="img-fluid rounded mb-3" alt="Pendidikan">
-                        <div class="mt-auto text-muted small">
-                            <i class="bi bi-info-circle"></i> 
-                            Tingkat pendidikan terakhir yang ditamatkan oleh penduduk.
-                        </div>
-                    {% else %}
-                        <div class="text-center py-5 text-muted">
-                            <i class="bi bi-mortarboard" style="font-size: 3rem;"></i>
-                            <p class="mt-3">Belum ada data pendidikan.</p>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <!-- 4. Pertumbuhan Penduduk -->
-        <div class="col-12 col-lg-6">
-            <div class="card shadow-sm border-0 h-100">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-graph-up"></i> Pertumbuhan Penduduk
-                    </h5>
-                </div>
-                <div class="card-body d-flex flex-column">
-                    {% if pertumbuhan_data %}
-                        <img src="{{ url_for('static', filename='charts/chart_pertumbuhan.png') }}?{{ range(1000)|random }}"
-                             class="img-fluid rounded mb-3" alt="Pertumbuhan">
-                        <div class="mt-auto text-muted small">
-                            <i class="bi bi-info-circle"></i> 
-                            Jumlah penduduk baru yang ditambahkan per bulan.
-                        </div>
-                    {% else %}
-                        <div class="text-center py-5 text-muted">
-                            <i class="bi bi-graph-up-arrow" style="font-size: 3rem;"></i>
-                            <p class="mt-3">Belum ada data pertumbuhan.</p>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
 
-    <!-- Catatan Kaki -->
-    <div class="text-center mt-5 text-muted small">
-        <p>
-            <i class="bi bi-shield-check"></i> 
-            Data diperbarui otomatis dari database lokal. | 
-            <a href="/statistik" class="text-decoration-none">Lihat statistik lengkap</a>
-        </p>
+    <!-- Pertumbuhan -->
+    <div class="col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h5><i class="bi bi-graph-up"></i> Pertumbuhan Penduduk</h5>
+        </div>
+        <div class="card-body text-center">
+          {% if pertumbuhan_data %}
+            <img src="{{ url_for('static', filename='charts/chart_pertumbuhan.png') }}" class="img-fluid" alt="Pertumbuhan Penduduk">
+          {% else %}
+            <p class="text-muted">Belum ada data</p>
+          {% endif %}
+        </div>
+      </div>
     </div>
+  </div>
+
+  <!-- Aksi Cepat -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5><i class="bi bi-tools"></i> Aksi Cepat</h5>
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <a href="/tambah" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Tambah Data</a>
+            <a href="/upload" class="btn btn-info text-white"><i class="bi bi-upload"></i> Upload Excel</a>
+            <a href="/cetak" class="btn btn-success"><i class="bi bi-printer"></i> Cetak</a>
+            <a href="/statistik" class="btn btn-warning text-dark"><i class="bi bi-bar-chart"></i> Statistik</a>
+            <a href="/progress" class="btn btn-secondary"><i class="bi bi-chart-line"></i> Progress</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
-
-<!-- Gaya Tambahan -->
-<style>
-    .card {
-        transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 15px rgba(0,0,0,0.1) !important;
-    }
-    .card-header i {
-        margin-right: 8px;
-    }
-</style>
 {% endblock %}
