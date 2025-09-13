@@ -1,0 +1,59 @@
+<!-- templates/log_aktivitas.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">📋 Log Aktivitas Sistem</h2>
+    
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/">Beranda</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Log Aktivitas</li>
+        </ol>
+    </nav>
+
+    {% if logs %}
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>User</th>
+                    <th>Aksi</th>
+                    <th>Detail</th>
+                    <th>Waktu</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td><strong>{{ log.username }}</strong></td>
+                    <td>
+                        {% if log.aksi == 'LOGIN' %}
+                        <span class="badge bg-info text-white">🔐 Login</span>
+                        {% elif log.aksi == 'TAMBAH_USER' %}
+                        <span class="badge bg-success">➕ Tambah User</span>
+                        {% elif log.aksi == 'HAPUS_DATA' %}
+                        <span class="badge bg-danger">🗑️ Hapus Data</span>
+                        {% elif log.aksi == 'EDIT_DATA' %}
+                        <span class="badge bg-warning text-dark">✏️ Edit Data</span>
+                        {% elif log.aksi == 'UPLOAD_EXCEL' %}
+                        <span class="badge bg-primary">📥 Upload Excel</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ log.aksi }}</span>
+                        {% endif %}
+                    </td>
+                    <td><small class="text-muted">{{ log.detail }}</small></td>
+                    <td><small class="text-muted">{{ log.timestamp }}</small></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info text-center py-4">
+        <i class="bi bi-journal-text" style="font-size: 2rem;"></i>
+        <p class="mb-0 mt-2"><strong>Belum ada aktivitas yang dicatat.</strong></p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

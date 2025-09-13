@@ -1,4 +1,5 @@
 # app.py
+# app.py
 from flask import Flask, render_template, request, redirect, url_for, flash, get_flashed_messages, send_file, send_from_directory
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import sqlite3
@@ -11,13 +12,9 @@ import shutil
 import threading
 import time
 from config import Config
-#import mstplotlib
 import matplotlib
 matplotlib.use('Agg')  # Penting: agar jalan di web server
 import matplotlib.pyplot as plt
-import os
-from flask import send_file
-
 
 # Buat folder
 os.makedirs("laporan/pdf", exist_ok=True)
@@ -31,37 +28,126 @@ app = Flask(__name__)
 app.config.from_object(Config)
 Config.init_app(app)
 
-def init_log_table():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS log_penghapusan (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nik TEXT NOT NULL,
-            nama TEXT NOT NULL,
-            alasan_hapus TEXT,
-            dusun TEXT,
-            tanggal_hapus DATETIME DEFAULT CURRENT_TIMESTAMP,
-            dihapus_oleh TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-# Flask-Login
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
-
-# Helper: Koneksi database
+# --- FUNGSI BANTUAN ---
 def get_db():
     conn = sqlite3.connect('desa.db')
     conn.row_factory = sqlite3.Row
     return conn
 
-# Fungsi sanitasi nama file
 def sanitize_filename(filename):
     return re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', filename)
+
+def shrink_font_for_fit(pdf, text, max_width, original_size, min_size=6):
+    """
+    Perkecil ukuran font sampai teks muat dalam lebar kolom.
+    Digunakan agar nama panjang tidak memicu multi_cell (yang bikin jelek).
+    """
+    pdf.set_font("helvetica", '', original_size)
+    while pdf.get_string_width(text) > max_width and pdf.font_size > min_size:
+        pdf.set_font("helvetica", '', pdf.font_size - 0.5)
+    return pdf.font_size
+
+# --- INISIALISASI DATABASE ---
+def init_db():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS penduduk (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nomor_kk TEXT,
+        nik TEXT UNIQUE,
+        nama TEXT,
+        hubungan TEXT,
+        jenis_kelamin TEXT,
+        tempat_lahir TEXT,
+        tanggal_lahir TEXT,
+        agama TEXT,
+        status_perkawinan TEXT,
+        pendidikan TEXT,
+        pekerjaan TEXT,
+        alamat TEXT,
+        rt_rw TEXT,
+        dusun TEXT,
+        golongan_darah TEXT,
+        kesejahteraan TEXT,
+        tanggal_input TEXT,
+        foto_ktp TEXT
+    )''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS user (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        password TEXT,
+        role TEXT,
+        dusun TEXT,
+        nik_masyarakat TEXT
+    )''')
+    conn.commit()
+    conn.close()
+
+def init_log_table():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""CREATE TABLE IF NOT EXISTS log_penghapusan (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nik TEXT NOT NULL,
+        nama TEXT NOT NULL,
+        alasan_hapus TEXT,
+        dusun TEXT,
+        tanggal_hapus DATETIME DEFAULT CURRENT_TIMESTAMP,
+        dihapus_oleh TEXT
+    )""")
+    conn.commit()
+    conn.close()
+
+def init_audit_log():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""CREATE TABLE IF NOT EXISTS log_aktivitas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        aksi TEXT NOT NULL,
+        detail TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )""")
+    conn.commit()
+    conn.close()
+
+def catat_aktivitas(username, aksi, detail=""):
+    """
+    Catat aktivitas user ke log_audit
+    """
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''INSERT INTO log_aktivitas (username, aksi, detail)
+                          VALUES (?, ?, ?)''', (username, aksi, detail))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error mencatat aktivitas: {str(e)}")
+
+# --- INISIALISASI DATABASE & USER AWAL ---
+if not os.path.exists('desa.db'):
+    init_db()
+
+# Tambah user default
+conn = get_db()
+conn.execute("INSERT OR IGNORE INTO user (username, password, role) VALUES (?, ?, ?)",
+            ('admin', '1234', 'admin'))
+conn.execute("INSERT OR IGNORE INTO user (username, password, role, dusun) VALUES (?, ?, ?, ?)",
+            ('kepala_satu', '1234', 'kepala_dusun', 'SATU'))
+conn.execute("INSERT OR IGNORE INTO user (username, password, role, nik_masyarakat) VALUES (?, ?, ?, ?)",
+            ('warga1', '1234', 'masyarakat', '1234567890123456'))
+conn.commit()
+conn.close()
+
+# Inisialisasi tabel log
+init_log_table()
+init_audit_log()  # ✅ Harus dipanggil setelah definisi fungsi
+
+# Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
 
 # Class User untuk Flask-Login
 class User(UserMixin):
@@ -76,49 +162,6 @@ class User(UserMixin):
 users = {}
 
 # Load user dari database
-@login_manager.user_loader
-def load_user(user_id):
-    return users.get(user_id)
-
-def init_db():
-    conn = sqlite3.connect('desa.db')
-    # Tabel penduduk
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS penduduk (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nomor_kk TEXT,
-            nik TEXT UNIQUE,
-            nama TEXT,
-            hubungan TEXT,
-            jenis_kelamin TEXT,
-            tempat_lahir TEXT,
-            tanggal_lahir TEXT,
-            agama TEXT,
-            status_perkawinan TEXT,
-            pendidikan TEXT,
-            pekerjaan TEXT,
-            alamat TEXT,
-            rt_rw TEXT,
-            dusun TEXT,
-            golongan_darah TEXT,
-            kesejahteraan TEXT,
-            tanggal_input TEXT,
-            foto_ktp TEXT
-        )
-    ''')
-    # Tabel user
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS user (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT,
-            role TEXT,
-            dusun TEXT,
-            nik_masyarakat TEXT
-        )
-    ''')
-    conn.close()
-
 def load_users_from_db():
     conn = get_db()
     cursor = conn.cursor()
@@ -126,6 +169,7 @@ def load_users_from_db():
     rows = cursor.fetchall()
     conn.close()
     
+    global users
     users.clear()
     for row in rows:
         users[row['username']] = User(
@@ -136,21 +180,29 @@ def load_users_from_db():
             nik_masyarakat=row['nik_masyarakat']
         )
 
-# --- Inisialisasi Database & User Awal ---
-if not os.path.exists('desa.db'):
-    init_db()
-    # Tambah user default
-    conn = get_db()
-    conn.execute("INSERT OR IGNORE INTO user (username, password, role) VALUES (?, ?, ?)",
-                 ('admin', '1234', 'admin'))
-    conn.execute("INSERT OR IGNORE INTO user (username, password, role, dusun) VALUES (?, ?, ?, ?)",
-                 ('kepala_satu', '1234', 'kepala_dusun', 'SATU'))
-    conn.execute("INSERT OR IGNORE INTO user (username, password, role, nik_masyarakat) VALUES (?, ?, ?, ?)",
-                 ('warga1', '1234', 'masyarakat', '1234567890123456'))
-    conn.commit()
-    conn.close()
+@login_manager.user_loader
+def load_user(user_id):
+    return users.get(user_id)
 
-load_users_from_db()  # Muat user dari db
+# Muat user dari database
+load_users_from_db()
+
+
+def catat_aktivitas(username, aksi, detail=""):
+    """
+    Catat aktivitas user ke log_audit
+    """
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''INSERT INTO log_aktivitas (username, aksi, detail)
+                          VALUES (?, ?, ?)''', (username, aksi, detail))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error mencatat aktivitas: {str(e)}")
+        
+
 
 # --- BACKUP OTOMATIS ---
 def backup_db():
@@ -366,7 +418,6 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- TAMBAH DATA ---
 @app.route('/tambah', methods=['GET', 'POST'])
 @login_required
 def tambah():
@@ -377,47 +428,76 @@ def tambah():
         nomor_kk = request.form['nomor_kk'].strip()
         dusun = request.form.get('dusun', '').strip()
 
+        # 🔧 1. Tambah validasi role
+        if current_user.role == 'kepala_dusun' and dusun != current_user.dusun:
+            flash("Anda hanya bisa input data di dusun Anda.", "danger")
+            return redirect(url_for('tambah'))
+        elif current_user.role == 'masyarakat':
+            flash("Anda tidak diizinkan menambah data.", "danger")
+            return redirect(url_for('index'))
+
+        # 🔧 2. Validasi data
         errors = validasi_data(nama, nik, nomor_kk, dusun)
         if errors:
             for e in errors:
                 flash(e, "danger")
             return redirect(url_for('tambah'))
+
+        # 🔧 3. Cek apakah NIK atau KK sudah ada
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM penduduk WHERE nik = ?", (nik,))
+        if cursor.fetchone()[0] > 0:
+            flash("NIK sudah ada di database.", "danger")
+            conn.close()
+            return redirect(url_for('tambah'))
+
+        cursor.execute("SELECT COUNT(*) FROM penduduk WHERE nomor_kk = ? AND nik != ?", (nomor_kk, nik))
+        if cursor.fetchone()[0] > 0 and hubungan != 'Kepala Keluarga':
+            flash("Nomor KK sudah digunakan oleh kepala keluarga lain.", "warning")
+
+        # 🔧 4. Sanitasi nama (hapus <br>, line break, karakter aneh)
+        nama = re.sub(r'<br>|<br/>|\n|\r', ' ', nama)  # Ganti <br> dengan spasi
+        nama = re.sub(r'\s+', ' ', nama).strip()      # Hapus spasi ganda
+
+        # 🔧 5. Simpan data
         data = {
-            'nomor_kk': request.form['nomor_kk'],
-            'nik': request.form['nik'],
-            'nama': request.form['nama'],
+            'nomor_kk': nomor_kk,
+            'nik': nik,
+            'nama': nama,
             'hubungan': request.form['hubungan'],
             'jenis_kelamin': request.form['jenis_kelamin'],
-            'tempat_lahir': request.form['tempat_lahir'],
+            'tempat_lahir': request.form['tempat_lahir'].strip().title(),
             'tanggal_lahir': request.form['tanggal_lahir'],
             'agama': request.form['agama'],
             'status_perkawinan': request.form['status_perkawinan'],
             'pendidikan': request.form['pendidikan'],
-            'pekerjaan': request.form['pekerjaan'],
-            'alamat': request.form['alamat'],
-            'rt_rw': request.form['rt_rw'],
-            'dusun': request.form.get('dusun', ''),
+            'pekerjaan': request.form['pekerjaan'].strip().title(),
+            'alamat': request.form['alamat'].strip().upper(),
+            'rt_rw': request.form['rt_rw'].strip(),
+            'dusun': dusun,
             'golongan_darah': request.form['golongan_darah'],
-            'kesejahteraan': ','.join(request.form.getlist('kesejahteraan')),
+            'kesejahteraan': ', '.join(request.form.getlist('kesejahteraan')),
             'tanggal_input': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'foto_ktp': ''
         }
-        conn = get_db()
+
         try:
             conn.execute('''
-                INSERT INTO penduduk (nomor_kk, nik, nama, hubungan, jenis_kelamin, tempat_lahir, tanggal_lahir, agama, status_perkawinan, pendidikan, pekerjaan, alamat, rt_rw, dusun, golongan_darah, kesejahteraan, tanggal_input, foto_ktp)
+                INSERT INTO penduduk (nomor_kk, nik, nama, hubungan, jenis_kelamin, tempat_lahir, tanggal_lahir, 
+                agama, status_perkawinan, pendidikan, pekerjaan, alamat, rt_rw, dusun, golongan_darah, kesejahteraan, tanggal_input, foto_ktp)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', tuple(data.values()))
             conn.commit()
             flash("Data berhasil ditambahkan!", "success")
-        except sqlite3.IntegrityError:
-            flash("NIK sudah ada! Data tidak bisa ditambahkan.", "danger")
+        except sqlite3.IntegrityError as e:
+            flash(f"Gagal simpan data: {str(e)}", "danger")
         finally:
             conn.close()
         return redirect(url_for('index'))
     
-    programs = ["BPJS KIS", "BPJS Mandiri", "PKH", "Sembako", "PIP", "BLT", "Tidak Ada"]
     return render_template('tambah.html', programs=programs)
+
 
 # --- EDIT DATA ---
 @app.route('/edit/<nik_old>', methods=['GET', 'POST'])
@@ -568,10 +648,26 @@ def upload():
 def cetak_kk(nomor_kk):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM penduduk WHERE nomor_kk = ? ORDER BY CASE WHEN hubungan='Kepala Keluarga' THEN 0 ELSE 1 END, nama", (nomor_kk,))
+    
+    # Base query
+    base_query = """
+        SELECT * FROM penduduk 
+        WHERE nomor_kk = ? 
+        ORDER BY CASE WHEN hubungan='Kepala Keluarga' THEN 0 ELSE 1 END, nama
+    """
+    params = (nomor_kk,)
+    
+    if current_user.role == 'kepala_dusun':
+        base_query = base_query.replace("WHERE", "WHERE dusun = ? AND")
+        params = (current_user.dusun, nomor_kk)
+    elif current_user.role == 'masyarakat':
+        base_query = base_query.replace("WHERE", "WHERE nik = ? AND")
+        params = (current_user.nik_masyarakat, nomor_kk)
+    
+    cursor.execute(base_query, params)
     rows = cursor.fetchall()
     conn.close()
-
+    
     if not rows:
         flash("Data tidak ditemukan untuk nomor KK ini.", "warning")
         return redirect(url_for('index'))
@@ -579,50 +675,119 @@ def cetak_kk(nomor_kk):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-    pdf.set_font("helvetica", 'B', 16)
+    
+    # Background watermark
+    pdf.set_text_color(230, 230, 230)
+    pdf.set_font("helvetica", 'B', 80)
+    pdf.text(30, 100, "NAGORI BAHAPAL RAYA")
+    pdf.set_text_color(0, 0, 0)
+
+    # Logo
+    try:
+        pdf.image('static/img/logo_desa.png', x=10, y=10, w=20)
+    except:
+        pass
+
+    # Header
+    pdf.set_font("helvetica", 'B', 18)
     pdf.cell(0, 10, "KARTU KELUARGA", ln=True, align='C')
-    pdf.set_font("helvetica", '', 12)
+    pdf.set_font("helvetica", '', 14)
     pdf.cell(0, 8, f"No. KK: {nomor_kk}", ln=True, align='C')
     pdf.ln(10)
 
-    pdf.set_font("helvetica", 'B', 8)
-    col_widths = [28, 35, 18, 25, 25, 18, 20, 20, 25, 20, 20]
-    headers = ["NIK", "Nama", "JK", "Tmpt Lahir", "Tgl Lahir", "Agama", "Status", "Pendidikan", "Pekerjaan", "Gol. Darah", "Hubungan"]
+    # Garis pemisah
+    pdf.set_draw_color(0, 0, 0)
+    pdf.line(10, 40, 290, 40)
+    pdf.ln(5)
+
+    # Tabel
+    pdf.set_font("helvetica", 'B', 9)
+    col_widths = [10, 28, 35, 18, 25, 25, 18, 20, 20, 25, 20, 20]  # Tambah kolom No.
+    headers = ["No", "NIK", "Nama", "JK", "Tmpt Lahir", "Tgl Lahir", "Agama", "Status", "Pendidikan", "Pekerjaan", "Gol. Darah", "Hubungan"]
     for i, h in enumerate(headers):
         pdf.cell(col_widths[i], 8, h, 1, 0, 'C')
     pdf.ln(8)
 
-    pdf.set_font("helvetica", '', 7)
-    for row in rows:
-        pdf.cell(col_widths[0], 8, str(row['nik']), 1)
-        pdf.cell(col_widths[1], 8, row['nama'], 1)
-        pdf.cell(col_widths[2], 8, row['jenis_kelamin'], 1)
-        pdf.cell(col_widths[3], 8, row['tempat_lahir'], 1)
-        pdf.cell(col_widths[4], 8, row['tanggal_lahir'], 1)
-        pdf.cell(col_widths[5], 8, row['agama'], 1)
-        pdf.cell(col_widths[6], 8, row['status_perkawinan'], 1)
-        pdf.cell(col_widths[7], 8, row['pendidikan'], 1)
-        pdf.cell(col_widths[8], 8, row['pekerjaan'], 1)
-        pdf.cell(col_widths[9], 8, row['golongan_darah'], 1)
-        pdf.cell(col_widths[10], 8, row['hubungan'], 1)
+    pdf.set_font("helvetica", '', 8)
+    for idx, row in enumerate(rows, 1):
+        x_before = pdf.get_x()
+        y_before = pdf.get_y()
+        
+        # Kolom 1: No
+        pdf.cell(col_widths[0], 8, str(idx), 1, 0, 'C')
+        
+        # Kolom 2: NIK
+        pdf.cell(col_widths[1], 8, str(row['nik']), 1, 0, 'L')
+        
+        # Kolom 3: Nama
+        max_width = col_widths[2] - 2
+        shrink_font_for_fit(pdf, row['nama'], max_width, 8, 6)
+        pdf.cell(col_widths[2], 8, row['nama'], 1, 0, 'L')
+        pdf.set_font("helvetica", '', 8)
+
+        # Kolom 4: JK
+        pdf.cell(col_widths[3], 8, row['jenis_kelamin'], 1, 0, 'C')
+        # Kolom 5: Tempat Lahir
+        shrink_font_for_fit(pdf, row['tempat_lahir'], col_widths[4] - 2, 8, 6)
+        pdf.cell(col_widths[4], 8, row['tempat_lahir'], 1, 0, 'L')
+        pdf.set_font("helvetica", '', 8)
+        # Kolom 6: Tanggal Lahir
+        pdf.cell(col_widths[5], 8, row['tanggal_lahir'], 1, 0, 'L')
+        # Kolom 7: Agama
+        pdf.cell(col_widths[6], 8, row['agama'], 1, 0, 'L')
+        # Kolom 8: Status
+        pdf.cell(col_widths[7], 8, row['status_perkawinan'], 1, 0, 'L')
+        # Kolom 9: Pendidikan
+        pdf.cell(col_widths[8], 8, row['pendidikan'], 1, 0, 'L')
+        # Kolom 10: Pekerjaan
+        shrink_font_for_fit(pdf, row['pekerjaan'], col_widths[9] - 2, 8, 6)
+        pdf.cell(col_widths[9], 8, row['pekerjaan'], 1, 0, 'L')
+        pdf.set_font("helvetica", '', 8)
+        # Kolom 11: Gol. Darah
+        pdf.cell(col_widths[10], 8, row['golongan_darah'], 1, 0, 'C')
+        # Kolom 12: Hubungan
+        pdf.cell(col_widths[11], 8, row['hubungan'], 1, 0, 'L')
+
         pdf.ln(8)
+
+    # Total Anggota
+    pdf.set_font("helvetica", 'B', 8)
+    pdf.cell(col_widths[0] + col_widths[1], 8, f"Total Anggota: {len(rows)}", 1, 0, 'C')
+    pdf.cell(sum(col_widths[2:]), 8, "", 1)  # Gabungkan sisa kolom
+    pdf.ln(10)
+
+    # Footer
+    pdf.set_font("helvetica", 'I', 8)
+    pdf.cell(0, 6, f"Dicetak oleh: {current_user.username} | Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}", 0, 1, 'C')
 
     os.makedirs("laporan/pdf", exist_ok=True)
     safe_kk = sanitize_filename(nomor_kk)
     filename = os.path.join("laporan", "pdf", f"kk_{safe_kk}.pdf")
     pdf.output(filename)
     return send_file(filename, as_attachment=True)
-
+    
 # --- CETAK SEMUA KK ---
 @app.route('/cetak/semua/kk')
 @login_required
 def cetak_semua_kk():
-    conn = get_db()
-    kk_rows = conn.execute("""
+    # Filter role
+    base_query = """
         SELECT DISTINCT nomor_kk FROM penduduk 
         WHERE nomor_kk IS NOT NULL AND TRIM(nomor_kk) != ''
-        ORDER BY nomor_kk
-    """).fetchall()
+    """
+    params = ()
+    
+    if current_user.role == 'kepala_dusun':
+        base_query += " AND dusun = ?"
+        params = (current_user.dusun,)
+    elif current_user.role == 'masyarakat':
+        base_query += " AND nik = ?"
+        params = (current_user.nik_masyarakat,)
+
+    base_query += " ORDER BY nomor_kk"
+    
+    conn = get_db()
+    kk_rows = conn.execute(base_query, params).fetchall()
     conn.close()
 
     kks = [row['nomor_kk'] for row in kk_rows]
@@ -635,70 +800,143 @@ def cetak_semua_kk():
 
     for nomor_kk in kks:
         conn = get_db()
-        rows = conn.execute("SELECT * FROM penduduk WHERE nomor_kk = ? ORDER BY CASE WHEN hubungan='Kepala Keluarga' THEN 0 ELSE 1 END, nama", (nomor_kk,)).fetchall()
+        rows = conn.execute("""
+            SELECT * FROM penduduk 
+            WHERE nomor_kk = ? 
+            ORDER BY CASE WHEN hubungan='Kepala Keluarga' THEN 0 ELSE 1 END, nama
+        """, (nomor_kk,)).fetchall()
         conn.close()
 
         if not rows:
             continue
 
         pdf.add_page()
-        pdf.set_font("helvetica", 'B', 16)
+        
+        # Background watermark
+        pdf.set_text_color(230, 230, 230)
+        pdf.set_font("helvetica", 'B', 80)
+        pdf.text(30, 100, "NAGORI BAHAPAL RAYA")
+        pdf.set_text_color(0, 0, 0)
+
+        # Logo
+        try:
+            pdf.image('static/img/logo_desa.png', x=10, y=10, w=20)
+        except:
+            pass
+
+        # Header
+        pdf.set_font("helvetica", 'B', 18)
         pdf.cell(0, 10, "KARTU KELUARGA", ln=True, align='C')
-        pdf.set_font("helvetica", '', 12)
+        pdf.set_font("helvetica", '', 14)
         pdf.cell(0, 8, f"No. KK: {nomor_kk}", ln=True, align='C')
         pdf.ln(10)
 
-        # Tabel (sama seperti di atas)
-        pdf.set_font("helvetica", 'B', 8)
+        # Garis pemisah
+        pdf.set_draw_color(0, 0, 0)
+        pdf.line(10, 40, 290, 40)
+        pdf.ln(5)
+
+        # Tabel
+        pdf.set_font("helvetica", 'B', 9)
         col_widths = [28, 35, 18, 25, 25, 18, 20, 20, 25, 20, 20]
         headers = ["NIK", "Nama", "JK", "Tmpt Lahir", "Tgl Lahir", "Agama", "Status", "Pendidikan", "Pekerjaan", "Gol. Darah", "Hubungan"]
         for i, h in enumerate(headers):
             pdf.cell(col_widths[i], 8, h, 1, 0, 'C')
         pdf.ln(8)
 
-        pdf.set_font("helvetica", '', 7)
+        pdf.set_font("helvetica", '', 8)
         for row in rows:
-            pdf.cell(col_widths[0], 8, str(row['nik']), 1)
-            pdf.cell(col_widths[1], 8, row['nama'], 1)
-            pdf.cell(col_widths[2], 8, row['jenis_kelamin'], 1)
-            pdf.cell(col_widths[3], 8, row['tempat_lahir'], 1)
-            pdf.cell(col_widths[4], 8, row['tanggal_lahir'], 1)
-            pdf.cell(col_widths[5], 8, row['agama'], 1)
-            pdf.cell(col_widths[6], 8, row['status_perkawinan'], 1)
-            pdf.cell(col_widths[7], 8, row['pendidikan'], 1)
-            pdf.cell(col_widths[8], 8, row['pekerjaan'], 1)
-            pdf.cell(col_widths[9], 8, row['golongan_darah'], 1)
-            pdf.cell(col_widths[10], 8, row['hubungan'], 1)
+            x_before = pdf.get_x()
+            y_before = pdf.get_y()
+            
+            # Kolom 1: NIK
+            pdf.cell(col_widths[0], 8, str(row['nik']), 1, 0, 'L')
+            
+            # Kolom 2: Nama (font mengecil otomatis)
+            max_width = col_widths[1] - 2
+            shrink_font_for_fit(pdf, row['nama'], max_width, 8, 6)
+            pdf.cell(col_widths[1], 8, row['nama'], 1, 0, 'L')
+            # Reset font ke 8
+            pdf.set_font("helvetica", '', 8)
+
+            # Kolom 3: JK
+            pdf.cell(col_widths[2], 8, row['jenis_kelamin'], 1, 0, 'C')
+            # Kolom 4: Tempat Lahir
+            shrink_font_for_fit(pdf, row['tempat_lahir'], col_widths[3] - 2, 8, 6)
+            pdf.cell(col_widths[3], 8, row['tempat_lahir'], 1, 0, 'L')
+            pdf.set_font("helvetica", '', 8)
+            # Kolom 5: Tanggal Lahir
+            pdf.cell(col_widths[4], 8, row['tanggal_lahir'], 1, 0, 'L')
+            # Kolom 6: Agama
+            pdf.cell(col_widths[5], 8, row['agama'], 1, 0, 'L')
+            # Kolom 7: Status
+            pdf.cell(col_widths[6], 8, row['status_perkawinan'], 1, 0, 'L')
+            # Kolom 8: Pendidikan
+            pdf.cell(col_widths[7], 8, row['pendidikan'], 1, 0, 'L')
+            # Kolom 9: Pekerjaan
+            shrink_font_for_fit(pdf, row['pekerjaan'], col_widths[8] - 2, 8, 6)
+            pdf.cell(col_widths[8], 8, row['pekerjaan'], 1, 0, 'L')
+            pdf.set_font("helvetica", '', 8)
+            # Kolom 10: Gol. Darah
+            pdf.cell(col_widths[9], 8, row['golongan_darah'], 1, 0, 'C')
+            # Kolom 11: Hubungan
+            pdf.cell(col_widths[10], 8, row['hubungan'], 1, 0, 'L')
+
+            # Pindah baris
             pdf.ln(8)
+
+        # Footer
+        pdf.ln(10)
+        pdf.set_font("helvetica", 'I', 8)
+        pdf.cell(0, 6, f"Dicetak oleh: {current_user.username} | Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}", 0, 1, 'C')
 
     os.makedirs("laporan/pdf", exist_ok=True)
     filepath = "laporan/pdf/semua_kk.pdf"
     pdf.output(filepath)
     return send_file(filepath, as_attachment=True)
-
+    
 # --- CETAK DARI NIK ---
 @app.route('/cetak/kk/dari-nik', methods=['GET', 'POST'])
 @login_required
 def cetak_kk_dari_nik():
     if request.method == 'POST':
         nik = request.form['nik'].strip()
+        
+        # Validasi NIK
         if not nik:
             flash("NIK tidak boleh kosong.", "danger")
+            return redirect(url_for('cetak_kk_dari_nik'))
+            
+        if not re.match(r'^\d{16}$', nik):
+            flash("NIK harus 16 digit angka.", "danger")
             return redirect(url_for('cetak_kk_dari_nik'))
 
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("SELECT nomor_kk FROM penduduk WHERE nik = ?", (nik,))
+        
+        # Base query
+        base_query = "SELECT nomor_kk FROM penduduk WHERE nik = ?"
+        params = (nik,)
+        
+        # Filter role
+        if current_user.role == 'kepala_dusun':
+            base_query += " AND dusun = ?"
+            params = (nik, current_user.dusun)
+        elif current_user.role == 'masyarakat':
+            base_query += " AND nik = ?"
+            params = (nik, current_user.nik_masyarakat)
+        
+        cursor.execute(base_query, params)
         result = cursor.fetchone()
         conn.close()
 
         if not result:
-            flash("NIK tidak ditemukan.", "danger")
+            flash("NIK tidak ditemukan atau Anda tidak berhak mengakses data ini.", "danger")
             return redirect(url_for('cetak_kk_dari_nik'))
 
         nomor_kk = result['nomor_kk']
         if not nomor_kk or not nomor_kk.strip():
-            flash("NIK ini tidak memiliki nomor KK.", "warning")
+            flash("NIK ini tidak terdaftar sebagai anggota keluarga.", "warning")
             return redirect(url_for('cetak_kk_dari_nik'))
 
         return redirect(url_for('cetak_kk', nomor_kk=nomor_kk))
@@ -711,11 +949,25 @@ def cetak_kk_dari_nik():
 def cetak_pilihan():
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT dusun FROM penduduk WHERE dusun IS NOT NULL AND TRIM(dusun) != '' ORDER BY dusun")
+    
+    base_query = "SELECT DISTINCT dusun FROM penduduk WHERE dusun IS NOT NULL AND TRIM(dusun) != ''"
+    params = ()
+    
+    if current_user.role == 'kepala_dusun':
+        base_query += " AND dusun = ?"
+        params = (current_user.dusun,)
+    elif current_user.role == 'masyarakat':
+        base_query += " AND nik = ?"
+        params = (current_user.nik_masyarakat,)
+    
+    base_query += " ORDER BY dusun"
+    
+    cursor.execute(base_query, params)
     dusun_list = [row['dusun'] for row in cursor.fetchall()]
     conn.close()
+    
     return render_template('cetak_pilihan.html', dusun_list=dusun_list)
-
+    
 # --- CETAK NIK SEMUA ---
 @app.route('/cetak/daftar/semua')
 @login_required
@@ -740,38 +992,84 @@ def cetak_daftar_semua():
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
+    
+    # Background watermark
+    pdf.set_text_color(230, 230, 230)
+    pdf.set_font("helvetica", 'B', 80)
+    pdf.text(30, 100, "NAGORI BAHAPAL RAYA")
+    pdf.set_text_color(0, 0, 0)
+
+    # Logo
+    try:
+        pdf.image('static/img/logo_desa.png', x=10, y=10, w=20)
+    except:
+        pass
+
+    # Header
     pdf.set_font("helvetica", 'B', 16)
     pdf.cell(0, 10, "DAFTAR SEMUA PENDUDUK", ln=True, align='C')
     pdf.set_font("helvetica", '', 12)
     pdf.cell(0, 8, "Desa Nagori Bahapal Raya", ln=True, align='C')
     pdf.ln(10)
 
+    # Tabel
     pdf.set_font("helvetica", 'B', 8)
-    col_widths = [25, 28, 35, 25, 18, 20, 20, 25, 25, 30]
-    headers = ["No. KK", "NIK", "Nama", "Hubungan", "JK", "Pendidikan", "Pekerjaan", "Dusun", "Alamat", "Kesejahteraan"]
+    col_widths = [10, 25, 28, 35, 25, 18, 20, 20, 25, 25, 30]
+    headers = ["No", "No. KK", "NIK", "Nama", "Hubungan", "JK", "Pendidikan", "Pekerjaan", "Dusun", "Alamat", "Kesejahteraan"]
     for i, h in enumerate(headers):
         pdf.cell(col_widths[i], 8, h, 1, 0, 'C')
     pdf.ln(8)
 
     pdf.set_font("helvetica", '', 7)
-    for row in rows:
-        pdf.cell(col_widths[0], 8, row['nomor_kk'] or '-', 1)
-        pdf.cell(col_widths[1], 8, str(row['nik']), 1)
-        pdf.cell(col_widths[2], 8, row['nama'], 1)
-        pdf.cell(col_widths[3], 8, row['hubungan'], 1)
-        pdf.cell(col_widths[4], 8, row['jenis_kelamin'], 1)
-        pdf.cell(col_widths[5], 8, row['pendidikan'], 1)
-        pdf.cell(col_widths[6], 8, row['pekerjaan'], 1)
-        pdf.cell(col_widths[7], 8, row['dusun'], 1)
-        pdf.cell(col_widths[8], 8, row['alamat'], 1)
+    for idx, row in enumerate(rows, 1):
+        # Kolom 1: No
+        pdf.cell(col_widths[0], 8, str(idx), 1, 0, 'C')
+        # Kolom 2: No. KK
+        pdf.cell(col_widths[1], 8, str(row['nomor_kk'] or '-'), 1)
+        # Kolom 3: NIK
+        pdf.cell(col_widths[2], 8, str(row['nik']), 1)
+        # Kolom 4: Nama
+        shrink_font_for_fit(pdf, row['nama'], col_widths[3] - 2, 7, 6)
+        pdf.cell(col_widths[3], 8, row['nama'], 1)
+        pdf.set_font("helvetica", '', 7)
+        # Kolom 5: Hubungan
+        pdf.cell(col_widths[4], 8, str(row['hubungan'] or '-'), 1)
+        # Kolom 6: JK
+        pdf.cell(col_widths[5], 8, str(row['jenis_kelamin'] or '-'), 1)
+        # Kolom 7: Pendidikan
+        pdf.cell(col_widths[6], 8, str(row['pendidikan'] or '-'), 1)
+        # Kolom 8: Pekerjaan
+        shrink_font_for_fit(pdf, row['pekerjaan'] or '-', col_widths[7] - 2, 7, 6)
+        pdf.cell(col_widths[7], 8, str(row['pekerjaan'] or '-'), 1)
+        pdf.set_font("helvetica", '', 7)
+        # Kolom 9: Dusun
+        pdf.cell(col_widths[8], 8, str(row['dusun']), 1)
+        # Kolom 10: Alamat
+        shrink_font_for_fit(pdf, row['alamat'] or '-', col_widths[9] - 2, 7, 6)
+        pdf.cell(col_widths[9], 8, str(row['alamat'] or '-'), 1)
+        pdf.set_font("helvetica", '', 7)
+        # Kolom 11: Kesejahteraan
         kesejahteraan = row['kesejahteraan'].replace(',', ', ') if row['kesejahteraan'] else '-'
-        pdf.cell(col_widths[9], 8, kesejahteraan, 1)
+        shrink_font_for_fit(pdf, kesejahteraan, col_widths[10] - 2, 7, 6)
+        pdf.cell(col_widths[10], 8, kesejahteraan, 1)
+        pdf.set_font("helvetica", '', 7)
         pdf.ln(8)
+
+    # Total Penduduk
+    pdf.set_font("helvetica", 'B', 8)
+    pdf.cell(col_widths[0] + sum(col_widths[1:4]), 8, f"TOTAL PENDUDUK: {len(rows)}", 1, 0, 'C')
+    pdf.cell(sum(col_widths[4:]), 8, "", 1)  # Gabungkan sisa kolom
+    pdf.ln(10)
+
+    # Footer
+    pdf.set_font("helvetica", 'I', 8)
+    pdf.cell(0, 6, f"Dicetak oleh: {current_user.username} | Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}", 0, 1, 'C')
 
     os.makedirs("laporan/pdf", exist_ok=True)
     filename = "laporan/pdf/daftar_semua_penduduk.pdf"
     pdf.output(filename)
     return send_file(filename, as_attachment=True)
+    
 
 # --- CETAK NIK PER DUSUN ---
 @app.route('/cetak/daftar/dusun')
@@ -781,10 +1079,14 @@ def cetak_daftar_dusun():
     if not dusun:
         flash("Dusun tidak valid.", "danger")
         return redirect(url_for('cetak_pilihan'))
+        
+    valid_dusun = ['SATU', 'DUA', 'TIGA', 'EMPAT']
+    if dusun not in valid_dusun:
+        flash("Dusun tidak ditemukan.", "danger")
+        return redirect(url_for('cetak_pilihan'))
 
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("""
+    # Base query
+    base_query = """
         SELECT nomor_kk, nik, nama, hubungan, jenis_kelamin, 
                pendidikan, pekerjaan, alamat, kesejahteraan 
         FROM penduduk 
@@ -792,7 +1094,19 @@ def cetak_daftar_dusun():
         ORDER BY nomor_kk, 
                  CASE WHEN hubungan = 'Kepala Keluarga' THEN 0 ELSE 1 END, 
                  nama
-    """, (dusun,))
+    """
+    params = (dusun,)
+    
+    if current_user.role == 'kepala_dusun' and current_user.dusun != dusun:
+        flash("Anda hanya bisa cetak daftar di dusun Anda.", "danger")
+        return redirect(url_for('cetak_pilihan'))
+    elif current_user.role == 'masyarakat':
+        flash("Anda tidak diizinkan mengakses fitur ini.", "danger")
+        return redirect(url_for('index'))
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(base_query, params)
     rows = cursor.fetchall()
     conn.close()
 
@@ -803,36 +1117,81 @@ def cetak_daftar_dusun():
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
+    
+    # Background watermark
+    pdf.set_text_color(230, 230, 230)
+    pdf.set_font("helvetica", 'B', 80)
+    pdf.text(30, 100, "NAGORI BAHAPAL RAYA")
+    pdf.set_text_color(0, 0, 0)
+
+    # Logo
+    try:
+        pdf.image('static/img/logo_desa.png', x=10, y=10, w=20)
+    except:
+        pass
+
+    # Header
     pdf.set_font("helvetica", 'B', 16)
     pdf.cell(0, 10, f"DAFTAR PENDUDUK DUSUN {dusun.upper()}", ln=True, align='C')
     pdf.ln(10)
 
+    # Tabel
     pdf.set_font("helvetica", 'B', 8)
-    col_widths = [25, 28, 35, 25, 18, 20, 20, 25, 30]
-    headers = ["No. KK", "NIK", "Nama", "Hubungan", "JK", "Pendidikan", "Pekerjaan", "Alamat", "Kesejahteraan"]
+    col_widths = [10, 25, 28, 35, 25, 18, 20, 20, 25, 30]
+    headers = ["No", "No. KK", "NIK", "Nama", "Hubungan", "JK", "Pendidikan", "Pekerjaan", "Alamat", "Kesejahteraan"]
     for i, h in enumerate(headers):
         pdf.cell(col_widths[i], 8, h, 1, 0, 'C')
     pdf.ln(8)
 
     pdf.set_font("helvetica", '', 7)
-    for row in rows:
-        pdf.cell(col_widths[0], 8, row['nomor_kk'] or '-', 1)
-        pdf.cell(col_widths[1], 8, str(row['nik']), 1)
-        pdf.cell(col_widths[2], 8, row['nama'], 1)
-        pdf.cell(col_widths[3], 8, row['hubungan'], 1)
-        pdf.cell(col_widths[4], 8, row['jenis_kelamin'], 1)
-        pdf.cell(col_widths[5], 8, row['pendidikan'], 1)
-        pdf.cell(col_widths[6], 8, row['pekerjaan'], 1)
-        pdf.cell(col_widths[7], 8, row['alamat'], 1)
+    for idx, row in enumerate(rows, 1):
+        # Kolom 1: No
+        pdf.cell(col_widths[0], 8, str(idx), 1, 0, 'C')
+        # Kolom 2: No. KK
+        pdf.cell(col_widths[1], 8, str(row['nomor_kk'] or '-'), 1)
+        # Kolom 3: NIK
+        pdf.cell(col_widths[2], 8, str(row['nik']), 1)
+        # Kolom 4: Nama
+        shrink_font_for_fit(pdf, row['nama'], col_widths[3] - 2, 7, 6)
+        pdf.cell(col_widths[3], 8, row['nama'], 1)
+        pdf.set_font("helvetica", '', 7)
+        # Kolom 5: Hubungan
+        pdf.cell(col_widths[4], 8, str(row['hubungan'] or '-'), 1)
+        # Kolom 6: JK
+        pdf.cell(col_widths[5], 8, str(row['jenis_kelamin'] or '-'), 1)
+        # Kolom 7: Pendidikan
+        pdf.cell(col_widths[6], 8, str(row['pendidikan'] or '-'), 1)
+        # Kolom 8: Pekerjaan
+        shrink_font_for_fit(pdf, row['pekerjaan'] or '-', col_widths[7] - 2, 7, 6)
+        pdf.cell(col_widths[7], 8, str(row['pekerjaan'] or '-'), 1)
+        pdf.set_font("helvetica", '', 7)
+        # Kolom 9: Alamat
+        shrink_font_for_fit(pdf, row['alamat'] or '-', col_widths[8] - 2, 7, 6)
+        pdf.cell(col_widths[8], 8, str(row['alamat'] or '-'), 1)
+        pdf.set_font("helvetica", '', 7)
+        # Kolom 10: Kesejahteraan
         kesejahteraan = row['kesejahteraan'].replace(',', ', ') if row['kesejahteraan'] else '-'
-        pdf.cell(col_widths[8], 8, kesejahteraan, 1)
+        shrink_font_for_fit(pdf, kesejahteraan, col_widths[9] - 2, 7, 6)
+        pdf.cell(col_widths[9], 8, kesejahteraan, 1)
+        pdf.set_font("helvetica", '', 7)
         pdf.ln(8)
+
+    # Total Penduduk di Dusun
+    pdf.set_font("helvetica", 'B', 8)
+    pdf.cell(col_widths[0] + sum(col_widths[1:4]), 8, f"TOTAL: {len(rows)} ORANG", 1, 0, 'C')
+    pdf.cell(sum(col_widths[4:]), 8, "", 1)  # Gabungkan sisa kolom
+    pdf.ln(10)
+
+    # Footer
+    pdf.set_font("helvetica", 'I', 8)
+    pdf.cell(0, 6, f"Dicetak oleh: {current_user.username} | Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}", 0, 1, 'C')
 
     os.makedirs("laporan/pdf", exist_ok=True)
     safe_dusun = sanitize_filename(dusun)
     filename = f"laporan/pdf/daftar_dusun_{safe_dusun}.pdf"
     pdf.output(filename)
     return send_file(filename, as_attachment=True)
+ 
     
 def word_wrap(text, pdf, max_width):
     lines = []
@@ -876,9 +1235,12 @@ def cetak_kk_per_dusun(dusun):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT DISTINCT nomor_kk FROM penduduk 
-        WHERE dusun = ? AND nomor_kk IS NOT NULL AND TRIM(nomor_kk) != ''
-        ORDER BY nomor_kk
+        SELECT DISTINCT nik, nomor_kk, nama, hubungan, jenis_kelamin, tempat_lahir, 
+               tanggal_lahir, agama, status_perkawinan, pendidikan, pekerjaan, 
+               alamat, golongan_darah, dusun
+        FROM penduduk 
+        WHERE nomor_kk = ? AND nama IS NOT NULL AND TRIM(nama) != ''
+        ORDER BY CASE WHEN hubungan='Kepala Keluarga' THEN 0 ELSE 1 END, nama                                                                                                               
     """, (dusun,))
     kk_rows = cursor.fetchall()
     conn.close()
@@ -952,6 +1314,7 @@ def cetak_kk_per_dusun(dusun):
             pdf.cell(col_widths[0], height, str(row['nik']), 1, 0, 'L')
 
             # Kolom 2: Nama (multi_cell)
+            
             pdf.set_xy(x_before + col_widths[0], y_before)
             pdf.multi_cell(col_widths[1], 4, row['nama'], border=1, align='L')
 
@@ -1257,29 +1620,43 @@ def tambah_user():
     if current_user.role != 'admin':
         flash("Akses ditolak.", "danger")
         return redirect(url_for('index'))
-
+    
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         role = request.form['role']
         dusun = request.form.get('dusun') if role == 'kepala_dusun' else None
         nik_masyarakat = request.form.get('nik_masyarakat') if role == 'masyarakat' else None
-
+        
         conn = get_db()
         try:
-            conn.execute('''
-                INSERT INTO user (username, password, role, dusun, nik_masyarakat)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (username, password, role, dusun, nik_masyarakat))
+            # Cek username sudah ada
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM user WHERE username = ?", (username,))
+            if cursor.fetchone()[0] > 0:
+                flash("Username sudah ada.", "danger")
+                return redirect(url_for('tambah_user'))
+            
+            # Tambah user baru
+            conn.execute('''INSERT INTO user (username, password, role, dusun, nik_masyarakat)
+                            VALUES (?, ?, ?, ?, ?)''', 
+                        (username, password, role, dusun, nik_masyarakat))
             conn.commit()
+            
+            # ✅ Catat aktivitas
+            catat_aktivitas(current_user.username, 'TAMBAH_USER', f"Tambah user: {username} ({role})")
+            
             flash("User berhasil ditambahkan!", "success")
             load_users_from_db()
-        except sqlite3.IntegrityError:
-            flash("Username sudah ada.", "danger")
+            
+        except Exception as e:
+            conn.rollback()
+            flash(f"Gagal tambah user: {str(e)}", "danger")
         finally:
             conn.close()
+        
         return redirect(url_for('index'))
-
+    
     return render_template('tambah_user.html')
     
 
@@ -1673,23 +2050,165 @@ def progress():
     )   
     # Di app.py, di akhir route /progress
     total_input = sum(row['jumlah_input'] for row in data_per_user) if data_per_user else 0
+
+@app.route('/hapus/<nik>', methods=['GET', 'POST'])
+@login_required
+def hapus(nik):
+    if request.method == 'POST':
+        alasan = request.form.get('alasan', '').strip()
+        if not alasan:
+            flash("Pilih satu alasan penghapusan.", "danger")
+            return redirect(url_for('index'))
+
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT nik, nama, dusun, tempat_lahir, tanggal_lahir, 
+                   jenis_kelamin, agama, status_perkawinan, pendidikan, 
+                   pekerjaan, alamat, rt_rw, golongan_darah, hubungan, 
+                   nomor_kk, kesejahteraan 
+            FROM penduduk WHERE nik = ?
+        """, (nik,))
+        row = cursor.fetchone()
+
+        if not row:
+            flash("Data tidak ditemukan.", "warning")
+            return redirect(url_for('index'))
+
+        # Cek hak akses
+        if current_user.role == 'kepala_dusun' and row['dusun'] != current_user.dusun:
+            flash("Anda tidak diizinkan menghapus data di dusun ini.", "danger")
+            return redirect(url_for('index'))
+        elif current_user.role == 'masyarakat':
+            flash("Anda tidak diizinkan menghapus data.", "danger")
+            return redirect(url_for('index'))
+
+        try:
+            # Simpan SEMUA data ke log
+            cursor.execute('''INSERT INTO log_penghapusan 
+                (nik, nama, dusun, tempat_lahir, tanggal_lahir,
+                 jenis_kelamin, agama, status_perkawinan, pendidikan,
+                 pekerjaan, alamat, rt_rw, golongan_darah, hubungan,
+                 nomor_kk, kesejahteraan, alasan_hapus, dihapus_oleh)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
+                tuple(row) + (alasan, current_user.username))
+            
+            # Hapus dari penduduk
+            cursor.execute("DELETE FROM penduduk WHERE nik = ?", (nik,))
+            conn.commit()
+            flash(f"Data NIK {nik} berhasil dihapus!", "success")
+        except Exception as e:
+            conn.rollback()
+            flash(f"Gagal menghapus  {str(e)}", "danger")
+        finally:
+            conn.close()
+        
+        return redirect(url_for('index'))
     
-@app.route('/riwayat_hapus')
+    return redirect(url_for('index'))
+ 
+@app.route('/riwayat_hapus', methods=['GET', 'POST'])
 @login_required
 def riwayat_hapus():
     if current_user.role != 'admin':
         flash("Akses ditolak.", "danger")
         return redirect(url_for('index'))
-
+    
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM log_penghapusan ORDER BY tanggal_hapus DESC")
-    riwayat = cursor.fetchall()
+    
+    if request.method == 'POST' and 'rollback_nik' in request.form:
+        nik = request.form['rollback_nik'].strip()  # Tambah strip()
+        
+        # Validasi NIK
+        if not nik or not re.match(r'^\d{16}$', nik):
+            flash("NIK tidak valid.", "danger")
+            conn.close()
+            return redirect(url_for('riwayat_hapus'))
+        
+        # Ambil data dari log
+        try:
+            cursor.execute("""SELECT nik, nama, dusun, tempat_lahir, tanggal_lahir,
+                                     jenis_kelamin, agama, status_perkawinan, pendidikan,
+                                     pekerjaan, alamat, rt_rw, golongan_darah, hubungan,
+                                     nomor_kk, kesejahteraan 
+                              FROM log_penghapusan 
+                              WHERE nik = ? ORDER BY tanggal_hapus DESC LIMIT 1""", (nik,))
+            row = cursor.fetchone()
+            
+            if not row:
+                flash(f"Data dengan NIK {nik} tidak ditemukan di log.", "warning")
+            else:
+                try:
+                    # Cek apakah NIK sudah ada
+                    cursor.execute("SELECT COUNT(*) FROM penduduk WHERE nik = ?", (nik,))
+                    if cursor.fetchone()[0] > 0:
+                        flash(f"NIK {nik} sudah ada di database. Tidak bisa dikembalikan.", "danger")
+                    else:
+                        # Kembalikan semua data
+                        cursor.execute('''INSERT INTO penduduk 
+                            (nik, nama, dusun, tempat_lahir, tanggal_lahir,
+                             jenis_kelamin, agama, status_perkawinan, pendidikan,
+                             pekerjaan, alamat, rt_rw, golongan_darah, hubungan,
+                             nomor_kk, kesejahteraan, tanggal_input)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                            tuple(row) + (datetime.now().strftime('%Y-%m-%d'),))
+                        
+                        # Hapus dari log setelah berhasil
+                        cursor.execute("DELETE FROM log_penghapusan WHERE nik = ?", (nik,))
+                        
+                        conn.commit()
+                        flash(f"Data NIK {nik} berhasil dikembalikan!", "success")
+                
+                except Exception as e:
+                    conn.rollback()
+                    flash(f"Gagal mengembalikan data: {str(e)}", "danger")
+        
+        except Exception as e:
+            conn.rollback()
+            flash(f"Error saat membaca log: {str(e)}", "danger")
+    
+    # Tampilkan semua riwayat
+    try:
+        cursor.execute("SELECT * FROM log_penghapusan ORDER BY tanggal_hapus DESC")
+        riwayat = cursor.fetchall()
+    except Exception as e:
+        flash(f"Error baca riwayat: {str(e)}", "danger")
+        riwayat = []
+    
     conn.close()
-
     return render_template('riwayat_hapus.html', riwayat=riwayat)
+
+
+@app.route('/log/aktivitas')
+@login_required
+def log_aktivitas():
+    if current_user.role != 'admin':
+        flash("Akses ditolak.", "danger")
+        return redirect(url_for('index'))
     
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT username, aksi, detail, timestamp 
+        FROM log_aktivitas 
+        ORDER BY timestamp DESC 
+        LIMIT 200
+    """)
+    logs = cursor.fetchall()
+    conn.close()
     
+    return render_template('log_aktivitas.html', logs=logs)
+
+  
+@app.route('/download/template/<filename>')
+@login_required
+def download_template(filename):
+    try:
+        return send_from_directory('template', filename, as_attachment=True)
+    except FileNotFoundError:
+        flash("Template tidak ditemukan.", "danger")
+        return redirect(url_for('upload'))   
         
 # --- ERROR HANDLER ---
 @app.errorhandler(404)

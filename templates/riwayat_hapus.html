@@ -1,4 +1,6 @@
+<!-- templates/riwayat_hapus.html -->
 {% extends "base.html" %}
+
 {% block content %}
 <div class="container-fluid">
     <h2>🗑️ Riwayat Penghapusan Data</h2>
@@ -11,7 +13,7 @@
 
     {% if riwayat %}
     <div class="table-responsive">
-        <table class="table table-striped">
+        <table class="table table-striped table-hover align-middle">
             <thead class="table-dark">
                 <tr>
                     <th>NIK</th>
@@ -20,24 +22,63 @@
                     <th>Dusun</th>
                     <th>Dihapus Oleh</th>
                     <th>Tanggal</th>
+                    {% if current_user.role == 'admin' %}
+                    <th>Aksi</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
                 {% for r in riwayat %}
                 <tr>
-                    <td>{{ r.nik }}</td>
-                    <td>{{ r.nama }}</td>
-                    <td>{{ r.alasan_hapus }}</td>
-                    <td>{{ r.dusun }}</td>
+                    <td><code>{{ r.nik }}</code></td>
+                    <td><strong>{{ r.nama }}</strong></td>
+                    <td>
+                        {% if r.alasan_hapus == 'Pindah' %}
+                        <span class="badge bg-warning text-dark">{{ r.alasan_hapus }}</span>
+                        {% elif r.alasan_hapus == 'Meninggal' %}
+                        <span class="badge bg-danger">{{ r.alasan_hapus }}</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ r.alasan_hapus }}</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="badge bg-info text-dark">{{ r.dusun }}</span></td>
                     <td>{{ r.dihapus_oleh }}</td>
-                    <td>{{ r.tanggal_hapus }}</td>
+                    <td><small class="text-muted">{{ r.tanggal_hapus }}</small></td>
+                    {% if current_user.role == 'admin' %}
+                    <td>
+                        <form method="post" style="display:inline;" onsubmit="return confirm('Yakin ingin kembalikan data ini?');">
+                            <input type="hidden" name="rollback_nik" value="{{ r.nik }}">
+                            <button type="submit" class="btn btn-sm btn-outline-success" title="Kembalikan data">
+                                <i class="bi bi-arrow-counterclockwise"></i> Kembalikan
+                            </button>
+                        </form>
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
     {% else %}
-    <div class="alert alert-info">Belum ada data yang dihapus.</div>
+    <div class="alert alert-info text-center py-4">
+        <i class="bi bi-inbox-fill" style="font-size: 2rem;"></i>
+        <p class="mb-0 mt-2"><strong>Belum ada data yang dihapus.</strong></p>
+    </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block script %}
+<script>
+// Auto-dismiss flash messages after 5 detik
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(alert => {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        });
+    }, 5000);
+});
+</script>
 {% endblock %}

@@ -1,39 +1,129 @@
 <!-- templates/tambah_user.html -->
 {% extends "base.html" %}
-{% block content %}
-<h2>➕ Tambah User</h2>
-<form method="post">
-    <div class="mb-3">
-        <label>Username</label>
-        <input type="text" name="username" class="form-control" required>
-    </div>
-    <div class="mb-3">
-        <label>Password</label>
-        <input type="password" name="password" class="form-control" required>
-    </div>
-    <div class="mb-3">
-        <label>Role</label>
-        <select name="role" class="form-control" onchange="toggleFields(this.value)">
-            <option value="admin">Admin</option>
-            <option value="kepala_dusun">Kepala Dusun</option>
-            <option value="masyarakat">Masyarakat</option>
-        </select>
-    </div>
-    <div class="mb-3" id="dusunField" style="display:none">
-        <label>Dusun</label>
-        <input type="text" name="dusun" class="form-control">
-    </div>
-    <div class="mb-3" id="nikField" style="display:none">
-        <label>NIK Masyarakat</label>
-        <input type="text" name="nik_masyarakat" class="form-control">
-    </div>
-    <button type="submit" class="btn btn-primary">Simpan</button>
-</form>
 
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">➕ Tambah User Baru</h2>
+    
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/">Beranda</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Tambah User</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form method="post">
+                <!-- Username -->
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username <span class="text-danger">*</span></label>
+                    <input type="text" 
+                           name="username" 
+                           id="username"
+                           class="form-control" 
+                           placeholder="Masukkan username"
+                           maxlength="50"
+                           required>
+                    <small class="text-muted">Gunakan huruf, angka, underscore. Minimal 3 karakter.</small>
+                </div>
+
+                <!-- Password -->
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
+                    <input type="password" 
+                           name="password" 
+                           id="password"
+                           class="form-control" 
+                           placeholder="Masukkan password"
+                           minlength="4"
+                           value="1234"
+                           required>
+                    <small class="text-muted">Default: 1234 (bisa diubah saat login)</small>
+                </div>
+
+                <!-- Role -->
+                <div class="mb-3">
+                    <label for="role" class="form-label">Role <span class="text-danger">*</span></label>
+                    <select name="role" 
+                            id="role" 
+                            class="form-select" 
+                            onchange="toggleFields(this.value)" required>
+                        <option value="">Pilih Role</option>
+                        <option value="admin">🔐 Admin</option>
+                        <option value="kepala_dusun">👥 Kepala Dusun</option>
+                        <option value="masyarakat">👤 Masyarakat</option>
+                    </select>
+                </div>
+
+                <!-- Field Dusun -->
+                <div class="mb-3" id="dusunField" style="display:none">
+                    <label for="dusun" class="form-label">Dusun <span class="text-danger">*</span></label>
+                    <select name="dusun" id="dusun" class="form-select">
+                        <option value="">Pilih Dusun</option>
+                        <option value="SATU">SATU</option>
+                        <option value="DUA">DUA</option>
+                        <option value="TIGA">TIGA</option>
+                        <option value="EMPAT">EMPAT</option>
+                    </select>
+                    <small class="text-muted">Kepala Dusun hanya bisa mengelola data dusunnya sendiri.</small>
+                </div>
+
+                <!-- Field NIK Masyarakat -->
+                <div class="mb-3" id="nikField" style="display:none">
+                    <label for="nik_masyarakat" class="form-label">NIK Masyarakat <span class="text-danger">*</span></label>
+                    <input type="text" 
+                           name="nik_masyarakat" 
+                           id="nik_masyarakat"
+                           class="form-control"
+                           placeholder="16 digit NIK"
+                           maxlength="16"
+                           pattern="\d{16}"
+                           title="Harus 16 digit angka">
+                    <small class="text-muted">Hanya boleh mengelola data dengan NIK ini.</small>
+                </div>
+
+                <!-- Catatan -->
+                <div class="alert alert-info mb-4">
+                    <strong>Info:</strong><br>
+                    • Admin: Akses penuh ke semua fitur<br>
+                    • Kepala Dusun: Hanya bisa akses dusun tertentu<br>
+                    • Masyarakat: Hanya bisa lihat & edit data miliknya
+                </div>
+
+                <!-- Tombol -->
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="/" class="btn btn-secondary">Batal</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Simpan User
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block script %}
 <script>
 function toggleFields(role) {
-    document.getElementById('dusunField').style.display = role === 'kepala_dusun' ? 'block' : 'none';
-    document.getElementById('nikField').style.display = role === 'masyarakat' ? 'block' : 'none';
+    const dusunField = document.getElementById('dusunField');
+    const nikField = document.getElementById('nikField');
+    
+    // Reset semua
+    dusunField.style.display = 'none';
+    nikField.style.display = 'none';
+    
+    // Tampilkan sesuai role
+    if (role === 'kepala_dusun') {
+        dusunField.style.display = 'block';
+        document.getElementById('dusun').setAttribute('required', '');
+        document.getElementById('nik_masyarakat').removeAttribute('required');
+    } else if (role === 'masyarakat') {
+        nikField.style.display = 'block';
+        document.getElementById('nik_masyarakat').setAttribute('required', '');
+        document.getElementById('dusun').removeAttribute('required');
+    }
 }
 </script>
 {% endblock %}

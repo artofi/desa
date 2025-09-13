@@ -54,7 +54,8 @@
               <li class="nav-item"><a class="nav-link" href="/tambah/user">➕ Tambah User</a></li>
               <li class="nav-item"><a class="nav-link" href="/progress">📈 Progress Input</a></li>
               <li class="nav-item"><a class="nav-link" href="/riwayat_hapus">🗑️ Riwayat Hapus</a></li>
-            {% endif %}
+			  <li class="nav-item"><a class="nav-link" href="/log/aktivitas">📊 Aktivitas</a></li>
+			{% endif %}
             {% if current_user.role in ['admin', 'kepala_dusun'] %}
               <li class="nav-item"><a class="nav-link" href="/upload">📥 Upload Excel</a></li>
             {% endif %}
@@ -89,35 +90,34 @@
   </div>
   {% endif %}
 
-  <!-- Modal Hapus dengan Alasan -->
-  <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <!-- Modal Konfirmasi Hapus -->
+  <div class="modal fade" id="confirmDeleteModal" tabindex="-1">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="deleteModalLabel">⚠️ Konfirmasi Penghapusan</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <h5 class="modal-title">⚠️ Konfirmasi Penghapusan</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <p><strong>Nama:</strong> <span id="modal-nama"></span></p>
-          <p><strong>NIK:</strong> <span id="modal-nik"></span></p>
-          <p>Pilih alasan penghapusan (wajib):</p>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="alasan" value="Salah Input Data" id="alasan1">
-            <label class="form-check-label" for="alasan1">Salah Input Data</label>
+          <p><strong>Anda yakin ingin menghapus data ini?</strong></p>
+          <table class="table table-sm">
+            <tr><th>NIK</th><td id="modalNik"></td></tr>
+            <tr><th>Nama</th><td id="modalNama"></td></tr>
+            <tr><th>Dusun</th><td id="modalDusun"></td></tr>
+          </table>
+          <div class="mb-3">
+            <label>Pilih Alasan:</label>
+            {% for alasan in ['Pindah', 'Meninggal', 'Duplikat', 'Data Salah', 'Tidak Berhak'] %}
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="alasan" value="{{ alasan }}" required>
+              <label class="form-check-label">{{ alasan }}</label>
+            </div>
+            {% endfor %}
           </div>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="alasan" value="Pindah" id="alasan2">
-            <label class="form-check-label" for="alasan2">Pindah</label>
-          </div>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="alasan" value="Meninggal" id="alasan3">
-            <label class="form-check-label" for="alasan3">Meninggal</label>
-          </div>
-          <div class="text-danger mt-2" id="error-alasan" style="font-size: 0.875rem;"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-          <button type="button" class="btn btn-danger" onclick="submitDelete()">🗑️ Hapus</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tidak</button>
+          <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Ya, Hapus</button>
         </div>
       </div>
     </div>
@@ -129,37 +129,36 @@
   <!-- Script Modal Hapus -->
   <script>
     let currentNik = '';
-    function showDeleteModal(nik, nama) {
+
+    function showDeleteModal(nik, nama, dusun) {
         currentNik = nik;
-        document.getElementById('modal-nik').textContent = nik;
-        document.getElementById('modal-nama').textContent = nama;
-        document.getElementById('error-alasan').textContent = '';
-        document.querySelectorAll('input[name="alasan"]').forEach(cb => cb.checked = false);
-        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        document.getElementById('modalNik').textContent = nik;
+        document.getElementById('modalNama').textContent = nama;
+        document.getElementById('modalDusun').textContent = dusun;
+        const modal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
+        modal.show();
     }
-    function submitDelete() {
-        const checkboxes = document.querySelectorAll('input[name="alasan"]:checked');
-        if (checkboxes.length === 0) {
-            document.getElementById('error-alasan').textContent = "Pilih minimal satu alasan.";
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/hapus/${currentNik}`;
+        
+        const selectedAlasan = document.querySelector('input[name="alasan"]:checked');
+        if (!selectedAlasan) {
+            alert('Pilih satu alasan penghapusan!');
             return;
         }
-        const alasan = Array.from(checkboxes).map(cb => cb.value).join(', ');
-        fetch(`/hapus/${currentNik}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `alasan=${encodeURIComponent(alasan)}`
-        })
-        .then(response => {
-            if (response.redirected || response.status === 200) {
-                window.location.reload();
-            } else {
-                alert('Gagal menghapus data.');
-            }
-        })
-        .catch(err => {
-            alert('Terjadi kesalahan saat menghapus.');
-        });
-    }
+        
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'alasan';
+        input.value = selectedAlasan.value;
+        form.appendChild(input);
+        
+        document.body.appendChild(form);
+        form.submit();
+    });
   </script>
 
   {% block script %}{% endblock %}
