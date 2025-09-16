@@ -422,82 +422,76 @@ def logout():
 @login_required
 def tambah():
     programs = ["BPJS KIS", "BPJS Mandiri", "PKH", "Sembako", "PIP", "BLT", "Tidak Ada"]
+    
     if request.method == 'POST':
+        # Ambil data DULU sebelum validasi
         nama = request.form['nama'].strip().upper()
         nik = request.form['nik'].strip()
         nomor_kk = request.form['nomor_kk'].strip()
         dusun = request.form.get('dusun', '').strip()
-
-        # 🔧 1. Tambah validasi role
-        if current_user.role == 'kepala_dusun' and dusun != current_user.dusun:
-            flash("Anda hanya bisa input data di dusun Anda.", "danger")
-            return redirect(url_for('tambah'))
-        elif current_user.role == 'masyarakat':
-            flash("Anda tidak diizinkan menambah data.", "danger")
-            return redirect(url_for('index'))
-
-        # 🔧 2. Validasi data
+        hubungan = request.form.get('hubungan', '')  # Ambil hubungan di sini
+        
         errors = validasi_data(nama, nik, nomor_kk, dusun)
         if errors:
             for e in errors:
                 flash(e, "danger")
             return redirect(url_for('tambah'))
 
-        # 🔧 3. Cek apakah NIK atau KK sudah ada
         conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM penduduk WHERE nik = ?", (nik,))
-        if cursor.fetchone()[0] > 0:
-            flash("NIK sudah ada di database.", "danger")
-            conn.close()
-            return redirect(url_for('tambah'))
-
-        cursor.execute("SELECT COUNT(*) FROM penduduk WHERE nomor_kk = ? AND nik != ?", (nomor_kk, nik))
-        if cursor.fetchone()[0] > 0 and hubungan != 'Kepala Keluarga':
-            flash("Nomor KK sudah digunakan oleh kepala keluarga lain.", "warning")
-
-        # 🔧 4. Sanitasi nama (hapus <br>, line break, karakter aneh)
-        nama = re.sub(r'<br>|<br/>|\n|\r', ' ', nama)  # Ganti <br> dengan spasi
-        nama = re.sub(r'\s+', ' ', nama).strip()      # Hapus spasi ganda
-
-        # 🔧 5. Simpan data
-        data = {
-            'nomor_kk': nomor_kk,
-            'nik': nik,
-            'nama': nama,
-            'hubungan': request.form['hubungan'],
-            'jenis_kelamin': request.form['jenis_kelamin'],
-            'tempat_lahir': request.form['tempat_lahir'].strip().title(),
-            'tanggal_lahir': request.form['tanggal_lahir'],
-            'agama': request.form['agama'],
-            'status_perkawinan': request.form['status_perkawinan'],
-            'pendidikan': request.form['pendidikan'],
-            'pekerjaan': request.form['pekerjaan'].strip().title(),
-            'alamat': request.form['alamat'].strip().upper(),
-            'rt_rw': request.form['rt_rw'].strip(),
-            'dusun': dusun,
-            'golongan_darah': request.form['golongan_darah'],
-            'kesejahteraan': ', '.join(request.form.getlist('kesejahteraan')),
-            'tanggal_input': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'foto_ktp': ''
-        }
-
         try:
-            conn.execute('''
-                INSERT INTO penduduk (nomor_kk, nik, nama, hubungan, jenis_kelamin, tempat_lahir, tanggal_lahir, 
-                agama, status_perkawinan, pendidikan, pekerjaan, alamat, rt_rw, dusun, golongan_darah, kesejahteraan, tanggal_input, foto_ktp)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', tuple(data.values()))
+            cursor = conn.cursor()
+            
+            # Cek apakah NIK sudah ada
+            cursor.execute("SELECT COUNT(*) FROM penduduk WHERE nik = ?", (nik,))
+            if cursor.fetchone()[0] > 0:
+                flash(f"NIK {nik} sudah terdaftar.", "danger")
+                return redirect(url_for('tambah'))
+
+            # Cek apakah KK sudah punya Kepala Keluarga
+            cursor.execute("SELECT COUNT(*) FROM penduduk WHERE nomor_kk = ? AND hubungan = 'Kepala Keluarga'", (nomor_kk,))
+            if cursor.fetchone()[0] > 0 and hubungan != 'Kepala Keluarga':
+                flash(f"KK {nomor_kk} sudah memiliki Kepala Keluarga.", "warning")
+
+            # Simpan data
+            kesejahteraan_list = request.form.getlist('kesejahteraan')
+            kesejahteraan_str = ', '.join(kesejahteraan_list) if kesejahteraan_list else ''
+            
+            cursor.execute('''INSERT INTO penduduk 
+                (nomor_kk, nik, nama, hubungan, jenis_kelamin, tempat_lahir, tanggal_lahir,
+                 agama, status_perkawinan, pendidikan, pekerjaan, alamat, rt_rw, dusun,
+                 golongan_darah, kesejahteraan, tanggal_input)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (nomor_kk, nik, nama, hubungan,
+                 request.form.get('jenis_kelamin'),
+                 request.form.get('tempat_lahir'),
+                 request.form.get('tanggal_lahir'),
+                 request.form.get('agama'),
+                 request.form.get('status_perkawinan'),
+                 request.form.get('pendidikan'),
+                 request.form.get('pekerjaan'),
+                 request.form.get('alamat'),
+                 request.form.get('rt_rw'),
+                 dusun,
+                 request.form.get('golongan_darah'),
+                 kesejahteraan_str,
+                 datetime.now().strftime('%Y-%m-%d')))
+            
             conn.commit()
-            flash("Data berhasil ditambahkan!", "success")
-        except sqlite3.IntegrityError as e:
-            flash(f"Gagal simpan data: {str(e)}", "danger")
+            flash(f"Data {nama} berhasil ditambahkan!", "success")
+            
+        except sqlite3.IntegrityError:
+            flash("NIK sudah digunakan oleh orang lain!", "danger")
+        except Exception as e:
+            flash(f"Terjadi kesalahan saat menyimpan: {str(e)}", "danger")
         finally:
             conn.close()
-        return redirect(url_for('index'))
+        
+
+        # ✅ Jadi:
+        back_url = request.form.get('back_url') or url_for('index')
+        return redirect(back_url)
     
     return render_template('tambah.html', programs=programs)
-
 
 # --- EDIT DATA ---
 @app.route('/edit/<nik_old>', methods=['GET', 'POST'])
@@ -513,13 +507,16 @@ def edit(nik_old):
         flash("Data tidak ditemukan.", "danger")
         return redirect(url_for('index'))
 
+    # Simpan back_url dari query string
+    back_url = request.args.get('back_url') or url_for('index')
+
     # Cek hak akses berdasarkan role
     if current_user.role == 'kepala_dusun' and row['dusun'] != current_user.dusun:
         flash("Anda tidak diizinkan mengedit data di dusun ini.", "danger")
-        return redirect(url_for('index'))
+        return redirect(back_url)
     elif current_user.role == 'masyarakat' and row['nik'] != current_user.nik_masyarakat:
         flash("Anda hanya bisa mengedit data milik Anda.", "danger")
-        return redirect(url_for('index'))
+        return redirect(back_url)
 
     if request.method == 'POST':
         # Ambil data dari form
@@ -528,7 +525,7 @@ def edit(nik_old):
         nomor_kk = request.form['nomor_kk'].strip()
         dusun = request.form.get('dusun', '').strip()
 
-        # Validasi data
+        # Validasi dasar
         errors = validasi_data(nama, nik, nomor_kk, dusun)
         if errors:
             for e in errors:
@@ -537,56 +534,71 @@ def edit(nik_old):
             return render_template('edit.html', 
                                  data=request.form, 
                                  programs=["BPJS KIS", "BPJS Mandiri", "PKH", "Sembako", "PIP", "BLT", "Tidak Ada"],
-                                 current_kesejahteraan=request.form.getlist('kesejahteraan'))
+                                 current_kesejahteraan=request.form.getlist('kesejahteraan'),
+                                 back_url=back_url)
 
-        # Siapkan data untuk update
-        data = {
-            'nomor_kk': nomor_kk,
-            'nik': nik,
-            'nama': nama,
-            'hubungan': request.form['hubungan'],
-            'jenis_kelamin': request.form['jenis_kelamin'],
-            'tempat_lahir': request.form['tempat_lahir'],
-            'tanggal_lahir': request.form['tanggal_lahir'],
-            'agama': request.form['agama'],
-            'status_perkawinan': request.form['status_perkawinan'],
-            'pendidikan': request.form['pendidikan'],
-            'pekerjaan': request.form['pekerjaan'],
-            'alamat': request.form['alamat'],
-            'rt_rw': request.form['rt_rw'],
-            'dusun': dusun,
-            'golongan_darah': request.form['golongan_darah'],
-            'kesejahteraan': ','.join(request.form.getlist('kesejahteraan')),
-            'tanggal_input': row['tanggal_input'],  # Pertahankan
-            'foto_ktp': row['foto_ktp']  # Pertahankan
-        }
-
-        # Update ke database
+        # Cek apakah NIK sudah digunakan oleh orang lain
         conn = get_db()
         try:
-            conn.execute('''
-                UPDATE penduduk SET nomor_kk=?, nik=?, nama=?, hubungan=?, jenis_kelamin=?, tempat_lahir=?, tanggal_lahir=?, agama=?, status_perkawinan=?, pendidikan=?, pekerjaan=?, alamat=?, rt_rw=?, dusun=?, golongan_darah=?, kesejahteraan=?, tanggal_input=?, foto_ktp=?
-                WHERE nik=?
-            ''', tuple(data.values()) + (nik_old,))
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM penduduk WHERE nik = ? AND nik != ?", (nik, nik_old))
+            if cursor.fetchone()[0] > 0:
+                flash(f"NIK {nik} sudah digunakan oleh penduduk lain.", "danger")
+                return render_template('edit.html', 
+                                     data=request.form, 
+                                     programs=["BPJS KIS", "BPJS Mandiri", "PKH", "Sembako", "PIP", "BLT", "Tidak Ada"],
+                                     current_kesejahteraan=request.form.getlist('kesejahteraan'),
+                                     back_url=back_url)
+
+            # Cek apakah KK sudah punya Kepala Keluarga (jika bukan kepala keluarga)
+            hubungan = request.form.get('hubungan', '')
+            cursor.execute("SELECT COUNT(*) FROM penduduk WHERE nomor_kk = ? AND hubungan = 'Kepala Keluarga'", (nomor_kk,))
+            if cursor.fetchone()[0] > 0 and hubungan != 'Kepala Keluarga':
+                flash(f"KK {nomor_kk} sudah memiliki Kepala Keluarga.", "warning")
+
+            # Update data
+            kesejahteraan_list = request.form.getlist('kesejahteraan')
+            kesejahteraan_str = ', '.join(kesejahteraan_list) if kesejahteraan_list else ''
+
+            cursor.execute('''UPDATE penduduk SET
+                nomor_kk = ?, nik = ?, nama = ?, hubungan = ?, jenis_kelamin = ?, tempat_lahir = ?, tanggal_lahir = ?,
+                agama = ?, status_perkawinan = ?, pendidikan = ?, pekerjaan = ?, alamat = ?, rt_rw = ?, dusun = ?,
+                golongan_darah = ?, kesejahteraan = ?
+                WHERE nik = ?''',
+                (nomor_kk, nik, nama, hubungan,
+                 request.form.get('jenis_kelamin'),
+                 request.form.get('tempat_lahir'),
+                 request.form.get('tanggal_lahir'),
+                 request.form.get('agama'),
+                 request.form.get('status_perkawinan'),
+                 request.form.get('pendidikan'),
+                 request.form.get('pekerjaan'),
+                 request.form.get('alamat'),
+                 request.form.get('rt_rw'),
+                 dusun,
+                 request.form.get('golongan_darah'),
+                 kesejahteraan_str,
+                 nik_old))
+
             conn.commit()
-            flash("Data berhasil diubah!", "success")
-        except sqlite3.IntegrityError:
-            flash("NIK sudah digunakan oleh orang lain!", "danger")
+            flash(f"Data {nama} berhasil diubah!", "success")
+            
         except Exception as e:
-            flash(f"Terjadi kesalahan saat menyimpan: {str(e)}", "danger")
+            flash(f"Gagal menyimpan: {str(e)}", "danger")
         finally:
             conn.close()
-
-        return redirect(url_for('index'))
+        
+        return redirect(back_url)
 
     # Jika GET, tampilkan form
     programs = ["BPJS KIS", "BPJS Mandiri", "PKH", "Sembako", "PIP", "BLT", "Tidak Ada"]
     current_kesejahteraan = row['kesejahteraan'].split(",") if row['kesejahteraan'] else []
-    return render_template('edit.html', 
-                         data=row, 
-                         programs=programs, 
-                         current_kesejahteraan=current_kesejahteraan)
-
+    
+    return render_template('edit.html',
+                         data=row,
+                         programs=programs,
+                         current_kesejahteraan=current_kesejahteraan,
+                         back_url=back_url)
 
 # --- UPLOAD EXCEL ---
 @app.route('/upload', methods=['GET', 'POST'])
@@ -2054,6 +2066,9 @@ def progress():
 @app.route('/hapus/<nik>', methods=['GET', 'POST'])
 @login_required
 def hapus(nik):
+    
+    back_url = request.args.get('back_url') or url_for('index')
+    
     if request.method == 'POST':
         alasan = request.form.get('alasan', '').strip()
         if not alasan:
@@ -2103,9 +2118,9 @@ def hapus(nik):
         finally:
             conn.close()
         
-        return redirect(url_for('index'))
+        return redirect(back_url)  # ⬅️ Kembali ke posisi semula
     
-    return redirect(url_for('index'))
+    return redirect(back_url)
  
 @app.route('/riwayat_hapus', methods=['GET', 'POST'])
 @login_required
@@ -2118,7 +2133,7 @@ def riwayat_hapus():
     cursor = conn.cursor()
     
     if request.method == 'POST' and 'rollback_nik' in request.form:
-        nik = request.form['rollback_nik'].strip()  # Tambah strip()
+        nik = request.form['rollback_nik'].strip()
         
         # Validasi NIK
         if not nik or not re.match(r'^\d{16}$', nik):
@@ -2126,14 +2141,15 @@ def riwayat_hapus():
             conn.close()
             return redirect(url_for('riwayat_hapus'))
         
-        # Ambil data dari log
         try:
-            cursor.execute("""SELECT nik, nama, dusun, tempat_lahir, tanggal_lahir,
-                                     jenis_kelamin, agama, status_perkawinan, pendidikan,
-                                     pekerjaan, alamat, rt_rw, golongan_darah, hubungan,
-                                     nomor_kk, kesejahteraan 
-                              FROM log_penghapusan 
-                              WHERE nik = ? ORDER BY tanggal_hapus DESC LIMIT 1""", (nik,))
+            # Ambil data dari log
+            cursor.execute("""SELECT 
+                nik, nama, dusun, tempat_lahir, tanggal_lahir,
+                jenis_kelamin, agama, status_perkawinan, pendidikan,
+                pekerjaan, alamat, rt_rw, golongan_darah, hubungan,
+                nomor_kk, kesejahteraan 
+                FROM log_penghapusan 
+                WHERE nik = ? ORDER BY tanggal_hapus DESC LIMIT 1""", (nik,))
             row = cursor.fetchone()
             
             if not row:
@@ -2145,7 +2161,7 @@ def riwayat_hapus():
                     if cursor.fetchone()[0] > 0:
                         flash(f"NIK {nik} sudah ada di database. Tidak bisa dikembalikan.", "danger")
                     else:
-                        # Kembalikan semua data
+                        # ✅ Kembalikan semua data + kolom tambahan
                         cursor.execute('''INSERT INTO penduduk 
                             (nik, nama, dusun, tempat_lahir, tanggal_lahir,
                              jenis_kelamin, agama, status_perkawinan, pendidikan,
@@ -2154,8 +2170,11 @@ def riwayat_hapus():
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                             tuple(row) + (datetime.now().strftime('%Y-%m-%d'),))
                         
-                        # Hapus dari log setelah berhasil
+                        # ✅ Hapus dari log setelah berhasil
                         cursor.execute("DELETE FROM log_penghapusan WHERE nik = ?", (nik,))
+                        
+                        # ✅ Catat aktivitas
+                        catat_aktivitas(current_user.username, 'ROLLBACK_HAPUS', f"Kembalikan data: {nik}")
                         
                         conn.commit()
                         flash(f"Data NIK {nik} berhasil dikembalikan!", "success")
@@ -2178,7 +2197,6 @@ def riwayat_hapus():
     
     conn.close()
     return render_template('riwayat_hapus.html', riwayat=riwayat)
-
 
 @app.route('/log/aktivitas')
 @login_required

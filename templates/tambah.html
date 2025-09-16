@@ -6,7 +6,7 @@
     <h2>➕ Tambah Data Penduduk</h2>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="/">Beranda</a></li>
+            <li class="breadcrumb-item"><a href="{{ request.args.get('back_url') or url_for('index') }}">Beranda</a></li>
             <li class="breadcrumb-item active" aria-current="page">Tambah Data</li>
         </ol>
     </nav>
@@ -24,8 +24,11 @@
     {% endwith %}
 
     <form method="post" class="bg-white p-4 rounded shadow-sm">
+        <!-- Simpan back_url untuk kembali ke posisi semula -->
+        <input type="hidden" name="back_url" value="{{ request.args.get('back_url') or url_for('index') }}">
+
         <div class="row">
-		            <!-- Nomor KK -->
+            <!-- Nomor KK -->
             <div class="col-md-6 mb-3">
                 <label for="nomor_kk" class="form-label">Nomor KK <span class="text-danger">*</span></label>
                 <input type="text"
@@ -35,8 +38,10 @@
                        oninput="validateNumber(this, 16)"
                        maxlength="16"
                        required>
+                <small class="text-muted">16 digit angka</small>
                 <div class="text-danger small mt-1" id="kk-error"></div>
             </div>
+
             <!-- NIK -->
             <div class="col-md-6 mb-3">
                 <label for="nik" class="form-label">NIK <span class="text-danger">*</span></label>
@@ -47,11 +52,13 @@
                        oninput="validateNumber(this, 16)"
                        maxlength="16"
                        required>
+                <small class="text-muted">16 digit angka</small>
                 <div class="text-danger small mt-1" id="nik-error"></div>
             </div>
+
             <!-- Nama -->
             <div class="col-md-6 mb-3">
-                <label for="nama" class="form-label">Nama <span class="text-danger">*</span></label>
+                <label for="nama" class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
                 <input type="text"
                        name="nama"
                        id="nama"
@@ -64,7 +71,7 @@
             <!-- Hubungan -->
             <div class="col-md-6 mb-3">
                 <label for="hubungan" class="form-label">Hubungan <span class="text-danger">*</span></label>
-                <select name="hubungan" id="hubungan" class="form-control" required>
+                <select name="hubungan" id="hubungan" class="form-select" required>
                     <option value="">-- Pilih --</option>
                     <option value="Kepala Keluarga">Kepala Keluarga</option>
                     <option value="Istri">Istri</option>
@@ -80,12 +87,12 @@
             <!-- Jenis Kelamin -->
             <div class="col-md-6 mb-3">
                 <label class="form-label">Jenis Kelamin <span class="text-danger">*</span></label>
-                <div>
-                    <div class="form-check form-check-inline">
+                <div class="d-flex gap-3">
+                    <div class="form-check">
                         <input class="form-check-input" type="radio" name="jenis_kelamin" value="L" id="jk-l" required>
                         <label class="form-check-label" for="jk-l">Laki-laki</label>
                     </div>
-                    <div class="form-check form-check-inline">
+                    <div class="form-check">
                         <input class="form-check-input" type="radio" name="jenis_kelamin" value="P" id="jk-p">
                         <label class="form-check-label" for="jk-p">Perempuan</label>
                     </div>
@@ -113,7 +120,6 @@
                         <label class="form-check-label" for="dusun4">EMPAT</label>
                     </div>
                 </div>
-                <div class="invalid-feedback">Pilih satu dusun.</div>
             </div>
 
             <!-- Tempat & Tanggal Lahir -->
@@ -129,11 +135,11 @@
             <!-- Agama -->
             <div class="col-md-6 mb-3">
                 <label for="agama" class="form-label">Agama</label>
-                <select name="agama" class="form-control">
+                <select name="agama" class="form-select">
                     <option value="">-- Pilih --</option>
                     <option value="Islam">Islam</option>
                     <option value="Kristen">Kristen</option>
-                    <option value="Katholik">Katholik</option>
+                    <option value="Katolik">Katolik</option>
                     <option value="Hindu">Hindu</option>
                     <option value="Buddha">Buddha</option>
                     <option value="Konghucu">Konghucu</option>
@@ -143,7 +149,7 @@
             <!-- Status Perkawinan -->
             <div class="col-md-6 mb-3">
                 <label for="status_perkawinan" class="form-label">Status Perkawinan</label>
-                <select name="status_perkawinan" class="form-control">
+                <select name="status_perkawinan" class="form-select">
                     <option value="">-- Pilih --</option>
                     <option value="Belum Kawin">Belum Kawin</option>
                     <option value="Kawin">Kawin</option>
@@ -155,7 +161,7 @@
             <!-- Pendidikan -->
             <div class="col-md-6 mb-3">
                 <label for="pendidikan" class="form-label">Pendidikan</label>
-                <select name="pendidikan" class="form-control">
+                <select name="pendidikan" class="form-select">
                     <option value="">-- Pilih --</option>
                     <option value="Tidak/Belum Sekolah">Tidak/Belum Sekolah</option>
                     <option value="Belum Tamat SD/Sederajat">Belum Tamat SD/Sederajat</option>
@@ -171,25 +177,24 @@
             </div>
 
             <!-- Pekerjaan -->
-            <!-- Pekerjaan -->
-			<div class="col-md-6 mb-3">
-				<label for="pekerjaan" class="form-label">Pekerjaan</label>
-				<select name="pekerjaan" class="form-select" required>
-					<option value="">-- Pilih Pekerjaan --</option>
-					<option value="Belum/Tidak Bekerja">Belum/Tidak Bekerja</option>
-					<option value="Mengurus Rumah Tangga">Mengurus Rumah Tangga</option>
-					<option value="Pelajar/Mahasiswa">Pelajar/Mahasiswa</option>
-					<option value="Pegawai Negeri Sipil">Pegawai Negeri Sipil</option>
-					<option value="Petani/Pekebun">Petani/Pekebun</option>
-					<option value="Wiraswasta">Wiraswasta</option>
-					<option value="Karyawan BUMD">Karyawan BUMD</option>
-					<option value="Karyawan Swasta">Karyawan Swasta</option>
-					<option value="Buruh Harian Lepas">Buruh Harian Lepas</option>
-					<option value="Bidan">Bidan</option>
-					<option value="Sopir">Sopir</option>
-					<option value="Lainnya">Lainnya</option>
-				</select>
-			</div>
+            <div class="col-md-6 mb-3">
+                <label for="pekerjaan" class="form-label">Pekerjaan</label>
+                <select name="pekerjaan" class="form-select">
+                    <option value="">-- Pilih Pekerjaan --</option>
+                    <option value="Belum/Tidak Bekerja">Belum/Tidak Bekerja</option>
+                    <option value="Mengurus Rumah Tangga">Mengurus Rumah Tangga</option>
+                    <option value="Pelajar/Mahasiswa">Pelajar/Mahasiswa</option>
+                    <option value="Pegawai Negeri Sipil">Pegawai Negeri Sipil</option>
+                    <option value="Petani/Pekebun">Petani/Pekebun</option>
+                    <option value="Wiraswasta">Wiraswasta</option>
+                    <option value="Karyawan BUMD">Karyawan BUMD</option>
+                    <option value="Karyawan Swasta">Karyawan Swasta</option>
+                    <option value="Buruh Harian Lepas">Buruh Harian Lepas</option>
+                    <option value="Bidan">Bidan</option>
+                    <option value="Sopir">Sopir</option>
+                    <option value="Lainnya">Lainnya</option>
+                </select>
+            </div>
 
             <!-- Alamat -->
             <div class="col-md-6 mb-3">
@@ -200,37 +205,39 @@
             <!-- RT/RW -->
             <div class="col-md-6 mb-3">
                 <label for="rt_rw" class="form-label">RT/RW</label>
-                <input type="text" name="rt_rw" class="form-control">
+                <input type="text" name="rt_rw" class="form-control" placeholder="001/002">
             </div>
 
             <!-- Golongan Darah -->
             <div class="col-md-6 mb-3">
-				<label>Golongan Darah</label>
-				<select name="golongan_darah" class="form-select">
-					  <option value="">Tidak Tahu</option>
-					  <option value="A">A</option>
-					  <option value="B">B</option>
-					  <option value="AB">AB</option>
-					  <option value="O">O</option>
-					  <option value="A+">A+</option>
-					  <option value="A-">A-</option>
-					  <option value="B+">B+</option>
-					  <option value="B-">B-</option>
-					  <option value="AB+">AB+</option>
-					  <option value="AB-">AB-</option>
-					  <option value="O+">O+</option>
-					  <option value="O-">O-</option>
-				</select>
-				</div>
+                <label for="golongan_darah" class="form-label">Gol. Darah</label>
+                <select name="golongan_darah" class="form-select">
+                    <option value="">Tidak Tahu</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="AB">AB</option>
+                    <option value="O">O</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                </select>
+            </div>
 
             <!-- Program Kesejahteraan -->
             <div class="col-12 mb-3">
                 <label class="form-label">Program Kesejahteraan</label>
-                <div class="d-flex flex-wrap gap-3">
+                <div class="row g-2">
                     {% for program in programs %}
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="kesejahteraan" value="{{ program }}" id="prog_{{ loop.index }}">
-                        <label class="form-check-label" for="prog_{{ loop.index }}">{{ program }}</label>
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="kesejahteraan" value="{{ program }}" id="prog_{{ loop.index }}">
+                            <label class="form-check-label" for="prog_{{ loop.index }}">{{ program }}</label>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
@@ -239,8 +246,8 @@
 
         <!-- Tombol -->
         <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-primary">💾 Simpan</button>
-            <a href="/" class="btn btn-secondary">⬅️ Batal</a>
+            <button type="submit" class="btn btn-primary">💾 Simpan Data</button>
+            <a href="{{ request.args.get('back_url') or url_for('index') }}" class="btn btn-secondary">⬅️ Batal</a>
         </div>
     </form>
 </div>

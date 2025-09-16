@@ -7,7 +7,7 @@
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Beranda</a></li>
-            <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Data Penduduk</a></li>
+            <li class="breadcrumb-item"><a href="{{ request.args.get('back_url') or url_for('index') }}">Data Penduduk</a></li>
             <li class="breadcrumb-item active" aria-current="page">Ubah Data</li>
         </ol>
     </nav>
@@ -27,6 +27,9 @@
     <div class="card shadow-sm">
         <div class="card-body">
             <form method="post">
+                <!-- Simpan back_url untuk kembali ke posisi semula -->
+                <input type="hidden" name="back_url" value="{{ request.args.get('back_url') or url_for('index') }}">
+
                 <div class="row mb-3">
                     <!-- NIK -->
                     <div class="col-md-6">
@@ -230,7 +233,7 @@
                 <!-- Tombol -->
                 <div class="d-grid gap-2 d-md-flex">
                     <button type="submit" class="btn btn-success">💾 Simpan Perubahan</button>
-                    <a href="{{ url_for('index') }}" class="btn btn-secondary">⬅️ Batal</a>
+                    <a href="{{ request.args.get('back_url') or url_for('index') }}" class="btn btn-secondary">⬅️ Batal</a>
                 </div>
             </form>
         </div>
